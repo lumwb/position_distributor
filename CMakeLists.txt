@@ -98,6 +98,11 @@ add_executable(test_subscriber
 )
 target_link_libraries(test_subscriber position_shm Threads::Threads)
 
+add_executable(multi_subscriber_demo
+    examples/multi_subscriber_demo.cpp
+)
+target_link_libraries(multi_subscriber_demo position_shm Threads::Threads)
+
 # Installation
 install(TARGETS media_driver exchange_client_example simple_publisher_example simple_subscriber_example DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)

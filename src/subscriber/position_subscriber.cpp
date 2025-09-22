@@ -49,7 +49,9 @@ namespace position_distributor
             this->processMessage(data, length);
         };
 
-        if (!topic_channel_->subscribe(message_handler))
+        // Use legacy subscribe method for backward compatibility - call the bool version explicitly
+        bool subscribed = topic_channel_->subscribe(message_handler);
+        if (!subscribed)
         {
             LOG_ERROR("Failed to subscribe to topic channel: " + config_.topic);
             media_driver_->unregisterSubscriber(subscriber_id_);

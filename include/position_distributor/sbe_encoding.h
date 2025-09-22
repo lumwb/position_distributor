@@ -79,8 +79,9 @@ namespace position_distributor
         }
     };
 
-    // Message frame header for shared memory transport
-    struct MessageFrame
+    // Legacy MessageFrame - replaced by lock-free version in shared_memory_manager.h
+    // This is kept for backward compatibility with existing SBE encoding
+    struct LegacyMessageFrame
     {
         uint32_t frame_length; // Total frame size including header
         uint8_t frame_type;    // Message type (DATA, HEARTBEAT, etc.)
@@ -99,9 +100,9 @@ namespace position_distributor
         static constexpr uint8_t FLAG_BEGIN_FRAG = 0x80;
         static constexpr uint8_t FLAG_END_FRAG = 0x40;
 
-        MessageFrame() = default;
-        MessageFrame(uint8_t type, uint32_t payload_size, uint32_t session, uint32_t stream, uint32_t term)
-            : frame_length(sizeof(MessageFrame) + payload_size), frame_type(type), flags(FLAG_BEGIN_FRAG | FLAG_END_FRAG) // Single fragment for now
+        LegacyMessageFrame() = default;
+        LegacyMessageFrame(uint8_t type, uint32_t payload_size, uint32_t session, uint32_t stream, uint32_t term)
+            : frame_length(sizeof(LegacyMessageFrame) + payload_size), frame_type(type), flags(FLAG_BEGIN_FRAG | FLAG_END_FRAG) // Single fragment for now
               ,
               reserved(0), term_offset(0) // Set by ring buffer
               ,
@@ -111,19 +112,22 @@ namespace position_distributor
 
         uint8_t *getPayload()
         {
-            return reinterpret_cast<uint8_t *>(this) + sizeof(MessageFrame);
+            return reinterpret_cast<uint8_t *>(this) + sizeof(LegacyMessageFrame);
         }
 
         const uint8_t *getPayload() const
         {
-            return reinterpret_cast<const uint8_t *>(this) + sizeof(MessageFrame);
+            return reinterpret_cast<const uint8_t *>(this) + sizeof(LegacyMessageFrame);
         }
 
         uint32_t getPayloadSize() const
         {
-            return frame_length - sizeof(MessageFrame);
+            return frame_length - sizeof(LegacyMessageFrame);
         }
     };
+
+    // Note: MessageFrame is now defined in shared_memory_manager.h as the lock-free version
+    // This LegacyMessageFrame is kept for SBE encoding compatibility only
 
 #pragma pack(pop)
 

@@ -12,11 +12,13 @@
 #include <cstdlib>
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
+#include <atomic>
 
 namespace position_distributor
 {
 
-    // SharedMemoryRingBuffer implementation
+    // Lock-free SharedMemoryRingBuffer implementation
     SharedMemoryRingBuffer::SharedMemoryRingBuffer(const std::string &topic, uint32_t term_length)
         : topic_(topic), term_length_(term_length), term_count_(DEFAULT_TERM_COUNT), shm_fd_(-1), mmap_ptr_(nullptr), header_(nullptr), terms_(nullptr), is_creator_(false)
     {
@@ -28,6 +30,7 @@ namespace position_distributor
 
         shm_path_ = getSharedMemoryPath();
         total_size_ = sizeof(SharedMemoryHeader) + (term_count_ * (sizeof(TermBuffer) + term_length_));
+        total_capacity_ = term_length_ * (term_count_ - 1); // Reserve one term for safety
 
         // Allocate term pointer array
         terms_ = new TermBuffer *[term_count_];
@@ -162,34 +165,63 @@ namespace position_distributor
             return false;
         }
 
-        std::lock_guard<std::mutex> lock(write_mutex_);
+        const uint32_t aligned_size = (sizeof(MessageFrame) + length + 31) & ~31U; // 32-byte alignment
 
-        // Calculate frame size (header + payload)
-        uint32_t frame_size = sizeof(MessageFrame) + length;
-
-        // Claim space in ring buffer
-        uint32_t term_offset;
-        TermBuffer *term;
-        if (!claim(frame_size, term_offset, term))
+        // Check backpressure before attempting reservation
+        if (!producerCanWrite(aligned_size))
         {
-            LOG_WARN("Failed to claim space in ring buffer for topic: " + topic_);
+            LOG_WARN("Ring buffer full, dropping message for topic: " + topic_);
             return false;
         }
 
-        // Write message frame
+        // Atomically reserve space
+        uint64_t claimed = header_->producer_pos.fetch_add(aligned_size, std::memory_order_acq_rel);
+
+        uint32_t term_index = getTermIndex(claimed);
+        uint32_t term_offset = getTermOffset(claimed);
+        TermBuffer *term = terms_[term_index];
+
+        // Handle wrap-around / padding
+        if (term_offset + aligned_size > term_length_)
+        {
+            // Write a padding frame
+            uint32_t padding = term_length_ - term_offset;
+            MessageFrame *pad = reinterpret_cast<MessageFrame *>(term->data + term_offset);
+            pad->frame_type = MessageFrame::FRAME_TYPE_PADDING;
+            pad->reserved = 0;
+            pad->session_id = session_id;
+            pad->stream_id = stream_id;
+            pad->term_id = term->term_id;
+            pad->term_offset = term_offset;
+            pad->frame_length.store(padding, std::memory_order_release);
+
+            // Move to next term
+            header_->active_term_id.fetch_add(1, std::memory_order_relaxed);
+            claimed = header_->producer_pos.fetch_add(aligned_size, std::memory_order_acq_rel);
+            term_index = getTermIndex(claimed);
+            term_offset = getTermOffset(claimed);
+            term = terms_[term_index];
+        }
+
+        // Write frame with frame_length = 0 initially (publish barrier)
         MessageFrame *frame = reinterpret_cast<MessageFrame *>(term->data + term_offset);
-        *frame = MessageFrame(MessageFrame::FRAME_TYPE_DATA, length, session_id, stream_id, term->term_id);
+        frame->frame_type = MessageFrame::FRAME_TYPE_DATA;
+        frame->reserved = 0;
+        frame->session_id = session_id;
+        frame->stream_id = stream_id;
+        frame->term_id = term->term_id;
         frame->term_offset = term_offset;
 
         // Copy payload
         std::memcpy(frame->getPayload(), data, length);
 
-        // Commit the write
-        commit(term_offset, frame_size);
+        // Publish: set length last with release semantics (CRITICAL for lock-free operation)
+        frame->frame_length.store(aligned_size, std::memory_order_release);
 
         return true;
     }
 
+    // Legacy read method (single consumer, NOT lock-free)
     bool SharedMemoryRingBuffer::read(std::function<void(const uint8_t *, uint32_t)> handler)
     {
         if (!header_ || !handler)
@@ -197,41 +229,148 @@ namespace position_distributor
             return false;
         }
 
-        uint64_t tail = header_->tail_position.load();
-        uint64_t head = header_->head_position.load();
+        // This is a legacy method that doesn't use the new lock-free multi-consumer design
+        // It's kept for backward compatibility but is NOT recommended for new code
+        LOG_WARN("Using legacy single-consumer read() method. Consider using registerSubscriber() + poll()");
 
-        if (tail >= head)
+        // For backward compatibility, we'll simulate using the first subscriber slot
+        static std::optional<SubscriberHandle> legacy_handle;
+        if (!legacy_handle.has_value())
         {
-            return false; // No new data
+            legacy_handle = registerSubscriber("legacy_reader");
+            if (!legacy_handle.has_value())
+            {
+                return false;
+            }
         }
 
-        // Calculate term and offset
-        uint32_t term_index = getTermIndex(tail);
-        uint32_t term_offset = getTermOffset(tail);
-        TermBuffer *term = terms_[term_index];
-
-        // Read message frame
-        const MessageFrame *frame = reinterpret_cast<const MessageFrame *>(term->data + term_offset);
-
-        // Validate frame
-        if (frame->frame_type == MessageFrame::FRAME_TYPE_DATA && frame->frame_length > sizeof(MessageFrame))
-        {
-            handler(frame->getPayload(), frame->getPayloadSize());
-
-            // Update tail position
-            header_->tail_position.store(tail + frame->frame_length);
-            return true;
-        }
-
-        return false;
+        return poll(legacy_handle.value(), handler);
     }
 
-    TermBuffer *SharedMemoryRingBuffer::getActiveTerm()
+    std::optional<SubscriberHandle> SharedMemoryRingBuffer::registerSubscriber(const char *name)
     {
-        uint32_t active_term_id = header_->active_term_id.load();
-        return terms_[active_term_id % term_count_];
+        if (!header_)
+        {
+            return std::nullopt;
+        }
+
+        const uint32_t pid = static_cast<uint32_t>(::getpid());
+        const uint64_t now = nowNanos();
+
+        for (uint32_t i = 0; i < MAX_SUBSCRIBERS; ++i)
+        {
+            uint32_t expected = 0;
+            if (header_->subs[i].active.compare_exchange_strong(expected, 1, std::memory_order_acq_rel))
+            {
+                // Claimed slot
+                header_->subs[i].pid = pid;
+                header_->subs[i].generation++;
+                header_->subs[i].cursor.store(header_->producer_pos.load(std::memory_order_acquire), std::memory_order_release);
+                header_->subs[i].last_heartbeat_ns.store(now, std::memory_order_release);
+
+                if (name)
+                {
+                    std::snprintf(header_->subs[i].name, sizeof(header_->subs[i].name), "%.31s", name);
+                }
+                else
+                {
+                    std::snprintf(header_->subs[i].name, sizeof(header_->subs[i].name), "sub_%u_%u", pid, i);
+                }
+
+                // Update cached min consumer position
+                header_->min_consumer_pos.store(minOfAllSubscribers(), std::memory_order_release);
+
+                LOG_INFO("Registered subscriber: " + std::string(header_->subs[i].name) + " (slot " + std::to_string(i) + ")");
+                return SubscriberHandle{i, header_->subs[i].generation};
+            }
+        }
+
+        LOG_ERROR("No free subscriber slots available (max: " + std::to_string(MAX_SUBSCRIBERS) + ")");
+        return std::nullopt; // No free slot
     }
 
+    void SharedMemoryRingBuffer::unregisterSubscriber(const SubscriberHandle &handle)
+    {
+        if (!header_ || !handle.isValid())
+        {
+            return;
+        }
+
+        auto &slot = header_->subs[handle.index];
+        // Only clear if still the same generation to avoid stomping a new owner
+        if (slot.generation == handle.generation)
+        {
+            LOG_INFO("Unregistering subscriber: " + std::string(slot.name) + " (slot " + std::to_string(handle.index) + ")");
+            slot.active.store(0, std::memory_order_release);
+            header_->min_consumer_pos.store(minOfAllSubscribers(), std::memory_order_release);
+        }
+    }
+
+    bool SharedMemoryRingBuffer::poll(const SubscriberHandle &handle, std::function<void(const uint8_t *, uint32_t)> handler)
+    {
+        if (!header_ || !handle.isValid() || !handler)
+        {
+            return false;
+        }
+
+        auto &slot = header_->subs[handle.index];
+        if (slot.generation != handle.generation)
+        {
+            LOG_WARN("Subscriber handle is stale, slot was reused");
+            return false; // Slot reused; re-register
+        }
+
+        uint64_t cursor = slot.cursor.load(std::memory_order_relaxed);
+        const uint64_t prod = header_->producer_pos.load(std::memory_order_acquire);
+
+        if (cursor >= prod)
+        {
+            return false; // Nothing new
+        }
+
+        // Check for overrun
+        if (isOverrun(cursor))
+        {
+            LOG_WARN("Subscriber overrun detected, jumping to latest position");
+            // Jump to a safe position (latest - some buffer)
+            cursor = prod > total_capacity_ / 2 ? prod - total_capacity_ / 2 : 0;
+            slot.cursor.store(cursor, std::memory_order_release);
+        }
+
+        uint32_t term_idx = getTermIndex(cursor);
+        uint32_t term_off = getTermOffset(cursor);
+        TermBuffer *term = terms_[term_idx];
+        const MessageFrame *frame = reinterpret_cast<const MessageFrame *>(term->data + term_off);
+
+        uint32_t frame_len = frame->frame_length.load(std::memory_order_acquire);
+        if (frame_len == 0)
+        {
+            return false; // Not yet committed
+        }
+
+        if (frame->frame_type == MessageFrame::FRAME_TYPE_PADDING)
+        {
+            // Skip to next term
+            cursor += frame_len;
+            slot.cursor.store(cursor, std::memory_order_release);
+            return true; // Consumed padding, try again
+        }
+
+        if (frame->frame_type == MessageFrame::FRAME_TYPE_DATA)
+        {
+            // Deliver payload
+            handler(frame->getPayload(), frame->getPayloadSize());
+        }
+
+        // Advance this subscriber's cursor
+        cursor += frame_len;
+        slot.cursor.store(cursor, std::memory_order_release);
+        slot.last_heartbeat_ns.store(nowNanos(), std::memory_order_relaxed);
+
+        return true;
+    }
+
+    // Helper methods for lock-free ring buffer
     uint32_t SharedMemoryRingBuffer::getTermOffset(uint64_t position) const
     {
         return static_cast<uint32_t>(position & (term_length_ - 1));
@@ -242,71 +381,121 @@ namespace position_distributor
         return static_cast<uint32_t>((position / term_length_) % term_count_);
     }
 
-    bool SharedMemoryRingBuffer::claim(uint32_t length, uint32_t &term_offset, TermBuffer *&term)
+    bool SharedMemoryRingBuffer::producerCanWrite(uint32_t needed_bytes)
     {
-        uint64_t head = header_->head_position.load();
-        uint64_t tail = header_->tail_position.load();
+        const uint64_t prod = header_->producer_pos.load(std::memory_order_acquire);
+        uint64_t min_cons = header_->min_consumer_pos.load(std::memory_order_acquire);
 
-        // Check if there's enough space
-        if (head - tail + length > term_length_ * (term_count_ - 1))
+        // Fast path: check against cached min; if too tight, recompute true min
+        if ((prod + needed_bytes) - min_cons <= total_capacity_)
         {
-            return false; // Buffer full
+            return true;
         }
 
-        term_offset = getTermOffset(head);
-        uint32_t term_index = getTermIndex(head);
-        term = terms_[term_index];
+        min_cons = minOfAllSubscribers(); // O(MAX_SUBSCRIBERS), cheap when <= 64
+        header_->min_consumer_pos.store(min_cons, std::memory_order_release);
+        return (prod + needed_bytes) - min_cons <= total_capacity_;
+    }
 
-        // Check if message fits in current term
-        if (term_offset + length > term_length_)
+    uint64_t SharedMemoryRingBuffer::minOfAllSubscribers()
+    {
+        uint64_t min_cursor = header_->producer_pos.load(std::memory_order_acquire);
+
+        for (uint32_t i = 0; i < MAX_SUBSCRIBERS; ++i)
         {
-            // Need to move to next term - add padding to current term
-            uint32_t padding_size = term_length_ - term_offset;
-            if (padding_size >= sizeof(MessageFrame))
+            if (header_->subs[i].active.load(std::memory_order_acquire) == 1)
             {
-                MessageFrame *padding_frame = reinterpret_cast<MessageFrame *>(term->data + term_offset);
-                *padding_frame = MessageFrame(MessageFrame::FRAME_TYPE_PADDING, 0, 0, 0, term->term_id);
-                padding_frame->frame_length = padding_size;
+                uint64_t cursor = header_->subs[i].cursor.load(std::memory_order_acquire);
+                min_cursor = std::min(min_cursor, cursor);
             }
-
-            // Move to next term
-            header_->head_position.store(head + padding_size);
-            header_->active_term_id.store(term->term_id + 1);
-
-            // Recalculate for new term
-            head = header_->head_position.load();
-            term_offset = getTermOffset(head);
-            term_index = getTermIndex(head);
-            term = terms_[term_index];
         }
 
-        return true;
+        return min_cursor;
     }
 
-    void SharedMemoryRingBuffer::commit(uint32_t term_offset, uint32_t length)
+    uint64_t SharedMemoryRingBuffer::nowNanos() const
     {
-        // Advance head position
-        header_->head_position.fetch_add(length);
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::steady_clock::now().time_since_epoch())
+            .count();
     }
 
-    uint64_t SharedMemoryRingBuffer::getHeadPosition() const
+    bool SharedMemoryRingBuffer::isOverrun(uint64_t cursor) const
     {
-        return header_ ? header_->head_position.load() : 0;
+        const uint64_t prod = header_->producer_pos.load(std::memory_order_acquire);
+        return (prod - cursor) > total_capacity_;
     }
 
-    uint64_t SharedMemoryRingBuffer::getTailPosition() const
+    uint64_t SharedMemoryRingBuffer::getProducerPosition() const
     {
-        return header_ ? header_->tail_position.load() : 0;
+        return header_ ? header_->producer_pos.load(std::memory_order_acquire) : 0;
     }
 
-    bool SharedMemoryRingBuffer::hasUnreadData() const
+    uint64_t SharedMemoryRingBuffer::getMinConsumerPosition() const
     {
-        return getHeadPosition() > getTailPosition();
+        return header_ ? header_->min_consumer_pos.load(std::memory_order_acquire) : 0;
     }
 
-    // TopicChannel implementation
+    bool SharedMemoryRingBuffer::hasUnreadData(const SubscriberHandle &handle) const
+    {
+        if (!header_ || !handle.isValid())
+        {
+            return false;
+        }
+
+        const auto &slot = header_->subs[handle.index];
+        if (slot.generation != handle.generation || slot.active.load(std::memory_order_acquire) != 1)
+        {
+            return false;
+        }
+
+        return getProducerPosition() > slot.cursor.load(std::memory_order_acquire);
+    }
+
+    size_t SharedMemoryRingBuffer::getActiveSubscriberCount() const
+    {
+        if (!header_)
+        {
+            return 0;
+        }
+
+        size_t count = 0;
+        for (uint32_t i = 0; i < MAX_SUBSCRIBERS; ++i)
+        {
+            if (header_->subs[i].active.load(std::memory_order_acquire) == 1)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    std::vector<std::pair<std::string, uint64_t>> SharedMemoryRingBuffer::getSubscriberInfo() const
+    {
+        std::vector<std::pair<std::string, uint64_t>> info;
+        if (!header_)
+        {
+            return info;
+        }
+
+        const uint64_t producer_pos = getProducerPosition();
+
+        for (uint32_t i = 0; i < MAX_SUBSCRIBERS; ++i)
+        {
+            if (header_->subs[i].active.load(std::memory_order_acquire) == 1)
+            {
+                uint64_t cursor = header_->subs[i].cursor.load(std::memory_order_acquire);
+                uint64_t lag = producer_pos - cursor;
+                std::string name = std::string(header_->subs[i].name) + " (lag: " + std::to_string(lag) + ")";
+                info.emplace_back(name, cursor);
+            }
+        }
+        return info;
+    }
+
+    // TopicChannel implementation with multi-subscriber support
     TopicChannel::TopicChannel(const std::string &topic)
-        : topic_(topic), stream_id_(calculateStreamId(topic)), subscribed_(false)
+        : topic_(topic), stream_id_(calculateStreamId(topic)), legacy_subscribed_(false)
     {
         ring_buffer_ = std::make_unique<SharedMemoryRingBuffer>(topic);
     }
@@ -323,7 +512,20 @@ namespace position_distributor
 
     void TopicChannel::cleanup()
     {
+        // Unregister all subscribers
+        {
+            std::lock_guard<std::mutex> lock(handlers_mutex_);
+            for (const auto &[index, handler] : subscriber_handlers_)
+            {
+                SubscriberHandle handle{index, 0}; // generation doesn't matter for cleanup
+                ring_buffer_->unregisterSubscriber(handle);
+            }
+            subscriber_handlers_.clear();
+        }
+
+        // Clean up legacy subscriber
         unsubscribe();
+
         if (ring_buffer_)
         {
             ring_buffer_->cleanup();
@@ -335,33 +537,114 @@ namespace position_distributor
         return ring_buffer_->write(data, length, session_id, stream_id_);
     }
 
-    bool TopicChannel::subscribe(MessageHandler handler)
+    // Multi-subscriber interface
+    std::optional<SubscriberHandle> TopicChannel::subscribeMulti(MessageHandler handler, const char *subscriber_name)
     {
-        if (subscribed_)
+        if (!ring_buffer_)
+        {
+            return std::nullopt;
+        }
+
+        auto handle = ring_buffer_->registerSubscriber(subscriber_name);
+        if (handle.has_value())
+        {
+            std::lock_guard<std::mutex> lock(handlers_mutex_);
+            subscriber_handlers_[handle->index] = handler;
+        }
+
+        return handle;
+    }
+
+    void TopicChannel::unsubscribe(const SubscriberHandle &handle)
+    {
+        if (!ring_buffer_)
+        {
+            return;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(handlers_mutex_);
+            subscriber_handlers_.erase(handle.index);
+        }
+
+        ring_buffer_->unregisterSubscriber(handle);
+    }
+
+    bool TopicChannel::readMessages(const SubscriberHandle &handle)
+    {
+        if (!ring_buffer_)
         {
             return false;
         }
 
-        message_handler_ = handler;
-        subscribed_ = true;
-        return true;
+        MessageHandler handler;
+        {
+            std::lock_guard<std::mutex> lock(handlers_mutex_);
+            auto it = subscriber_handlers_.find(handle.index);
+            if (it == subscriber_handlers_.end())
+            {
+                return false;
+            }
+            handler = it->second;
+        }
+
+        return ring_buffer_->poll(handle, handler);
+    }
+
+    // Legacy single-subscriber interface (backward compatibility)
+    bool TopicChannel::subscribe(MessageHandler handler)
+    {
+        if (legacy_subscribed_)
+        {
+            return false;
+        }
+
+        if (!ring_buffer_)
+        {
+            return false;
+        }
+
+        legacy_handle_ = ring_buffer_->registerSubscriber("legacy_subscriber");
+        if (legacy_handle_.has_value())
+        {
+            legacy_message_handler_ = handler;
+            legacy_subscribed_ = true;
+            return true;
+        }
+
+        return false;
     }
 
     void TopicChannel::unsubscribe()
     {
-        subscribed_ = false;
-        message_handler_ = nullptr;
+        if (legacy_subscribed_ && legacy_handle_.has_value())
+        {
+            ring_buffer_->unregisterSubscriber(legacy_handle_.value());
+            legacy_handle_.reset();
+        }
+
+        legacy_subscribed_ = false;
+        legacy_message_handler_ = nullptr;
     }
 
     bool TopicChannel::readMessages()
     {
-        if (!subscribed_ || !message_handler_ || !ring_buffer_)
+        if (!legacy_subscribed_ || !legacy_message_handler_ || !ring_buffer_ || !legacy_handle_.has_value())
         {
             return false;
         }
 
-        // Read from the ring buffer and call the message handler
-        return ring_buffer_->read(message_handler_);
+        return ring_buffer_->poll(legacy_handle_.value(), legacy_message_handler_);
+    }
+
+    size_t TopicChannel::getActiveSubscriberCount() const
+    {
+        return ring_buffer_ ? ring_buffer_->getActiveSubscriberCount() : 0;
+    }
+
+    std::vector<std::pair<std::string, uint64_t>> TopicChannel::getSubscriberInfo() const
+    {
+        return ring_buffer_ ? ring_buffer_->getSubscriberInfo() : std::vector<std::pair<std::string, uint64_t>>{};
     }
 
     uint32_t TopicChannel::calculateStreamId(const std::string &topic)
