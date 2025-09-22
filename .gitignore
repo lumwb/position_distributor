@@ -1,0 +1,193 @@
+# Build directories
+build/
+build-*/
+out/
+cmake-build-*/
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+CTestTestfile.cmake
+Testing/
+
+# Compiled Object files
+*.o
+*.obj
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.a
+*.la
+*.lo
+*.lai
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# IDE and Editor files
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# CLion
+.idea/
+cmake-build-*/
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+*.moc
+*.moc.cpp
+*.qm
+*.prl
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Eclipse CDT
+.metadata
+.settings/
+.project
+.cproject
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Temporary files
+*~
+*.swp
+*.swo
+*.tmp
+*.temp
+*.log
+*.tlog
+*.ilk
+*.exp
+*.iobj
+*.ipdb
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Package managers
+conan.lock
+conanbuildinfo.cmake
+conanbuildinfo.txt
+conandata.yml
+conanfile.pyc
+
+# vcpkg
+vcpkg_installed/
+.vcpkg-root
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Test results
+test_results/
+test_detail.xml
+*.gcda
+*.gcno
+*.gcov
+
+# Coverage reports
+coverage/
+*.info
+
+# Profiling data
+*.prof
+gmon.out
+
+# Memory debugging
+*.memcheck
+*.valgrind
+
+# Documentation generated files
+docs/html/
+docs/latex/
+docs/man/
+docs/rtf/
+Doxyfile.bak
+
+# Project specific
+# Shared memory files (if any leak to filesystem)
+/tmp/position_distributor_*
+*.dat
+
+# Local configuration files
+local.properties
+config.local.*
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
