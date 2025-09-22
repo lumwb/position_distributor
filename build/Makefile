@@ -162,127 +162,320 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named position_server
+# Target rules for targets named position_shm
 
 # Build rule for target.
-position_server: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 position_server
-.PHONY : position_server
+position_shm: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 position_shm
+.PHONY : position_shm
 
 # fast build rule for target.
-position_server/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/build
-.PHONY : position_server/fast
+position_shm/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/build
+.PHONY : position_shm/fast
 
 #=============================================================================
-# Target rules for targets named position_client
+# Target rules for targets named media_driver
 
 # Build rule for target.
-position_client: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 position_client
-.PHONY : position_client
+media_driver: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 media_driver
+.PHONY : media_driver
 
 # fast build rule for target.
-position_client/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/build
-.PHONY : position_client/fast
+media_driver/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/media_driver.dir/build.make CMakeFiles/media_driver.dir/build
+.PHONY : media_driver/fast
 
 #=============================================================================
-# Target rules for targets named simple_test
+# Target rules for targets named exchange_client_example
 
 # Build rule for target.
-simple_test: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 simple_test
-.PHONY : simple_test
+exchange_client_example: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 exchange_client_example
+.PHONY : exchange_client_example
 
 # fast build rule for target.
-simple_test/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/build
-.PHONY : simple_test/fast
+exchange_client_example/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/exchange_client_example.dir/build.make CMakeFiles/exchange_client_example.dir/build
+.PHONY : exchange_client_example/fast
 
-examples/simple_test.o: examples/simple_test.cpp.o
-.PHONY : examples/simple_test.o
+#=============================================================================
+# Target rules for targets named simple_publisher_example
+
+# Build rule for target.
+simple_publisher_example: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 simple_publisher_example
+.PHONY : simple_publisher_example
+
+# fast build rule for target.
+simple_publisher_example/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_publisher_example.dir/build.make CMakeFiles/simple_publisher_example.dir/build
+.PHONY : simple_publisher_example/fast
+
+#=============================================================================
+# Target rules for targets named simple_subscriber_example
+
+# Build rule for target.
+simple_subscriber_example: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 simple_subscriber_example
+.PHONY : simple_subscriber_example
+
+# fast build rule for target.
+simple_subscriber_example/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_subscriber_example.dir/build.make CMakeFiles/simple_subscriber_example.dir/build
+.PHONY : simple_subscriber_example/fast
+
+#=============================================================================
+# Target rules for targets named demo_test
+
+# Build rule for target.
+demo_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 demo_test
+.PHONY : demo_test
+
+# fast build rule for target.
+demo_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_test.dir/build.make CMakeFiles/demo_test.dir/build
+.PHONY : demo_test/fast
+
+#=============================================================================
+# Target rules for targets named two_client_demo
+
+# Build rule for target.
+two_client_demo: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 two_client_demo
+.PHONY : two_client_demo
+
+# fast build rule for target.
+two_client_demo/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/two_client_demo.dir/build.make CMakeFiles/two_client_demo.dir/build
+.PHONY : two_client_demo/fast
+
+#=============================================================================
+# Target rules for targets named test_publisher
+
+# Build rule for target.
+test_publisher: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_publisher
+.PHONY : test_publisher
+
+# fast build rule for target.
+test_publisher/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_publisher.dir/build.make CMakeFiles/test_publisher.dir/build
+.PHONY : test_publisher/fast
+
+#=============================================================================
+# Target rules for targets named test_subscriber
+
+# Build rule for target.
+test_subscriber: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_subscriber
+.PHONY : test_subscriber
+
+# fast build rule for target.
+test_subscriber/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_subscriber.dir/build.make CMakeFiles/test_subscriber.dir/build
+.PHONY : test_subscriber/fast
+
+examples/demo_test.o: examples/demo_test.cpp.o
+.PHONY : examples/demo_test.o
 
 # target to build an object file
-examples/simple_test.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/examples/simple_test.cpp.o
-.PHONY : examples/simple_test.cpp.o
+examples/demo_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_test.dir/build.make CMakeFiles/demo_test.dir/examples/demo_test.cpp.o
+.PHONY : examples/demo_test.cpp.o
 
-examples/simple_test.i: examples/simple_test.cpp.i
-.PHONY : examples/simple_test.i
+examples/demo_test.i: examples/demo_test.cpp.i
+.PHONY : examples/demo_test.i
 
 # target to preprocess a source file
-examples/simple_test.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/examples/simple_test.cpp.i
-.PHONY : examples/simple_test.cpp.i
+examples/demo_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_test.dir/build.make CMakeFiles/demo_test.dir/examples/demo_test.cpp.i
+.PHONY : examples/demo_test.cpp.i
 
-examples/simple_test.s: examples/simple_test.cpp.s
-.PHONY : examples/simple_test.s
+examples/demo_test.s: examples/demo_test.cpp.s
+.PHONY : examples/demo_test.s
 
 # target to generate assembly for a file
-examples/simple_test.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/examples/simple_test.cpp.s
-.PHONY : examples/simple_test.cpp.s
+examples/demo_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_test.dir/build.make CMakeFiles/demo_test.dir/examples/demo_test.cpp.s
+.PHONY : examples/demo_test.cpp.s
 
-src/client/simple_position_client.o: src/client/simple_position_client.cpp.o
-.PHONY : src/client/simple_position_client.o
+examples/exchange_client_example.o: examples/exchange_client_example.cpp.o
+.PHONY : examples/exchange_client_example.o
 
 # target to build an object file
-src/client/simple_position_client.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/client/simple_position_client.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/client/simple_position_client.cpp.o
-.PHONY : src/client/simple_position_client.cpp.o
+examples/exchange_client_example.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/exchange_client_example.dir/build.make CMakeFiles/exchange_client_example.dir/examples/exchange_client_example.cpp.o
+.PHONY : examples/exchange_client_example.cpp.o
 
-src/client/simple_position_client.i: src/client/simple_position_client.cpp.i
-.PHONY : src/client/simple_position_client.i
+examples/exchange_client_example.i: examples/exchange_client_example.cpp.i
+.PHONY : examples/exchange_client_example.i
 
 # target to preprocess a source file
-src/client/simple_position_client.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/client/simple_position_client.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/client/simple_position_client.cpp.i
-.PHONY : src/client/simple_position_client.cpp.i
+examples/exchange_client_example.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/exchange_client_example.dir/build.make CMakeFiles/exchange_client_example.dir/examples/exchange_client_example.cpp.i
+.PHONY : examples/exchange_client_example.cpp.i
 
-src/client/simple_position_client.s: src/client/simple_position_client.cpp.s
-.PHONY : src/client/simple_position_client.s
+examples/exchange_client_example.s: examples/exchange_client_example.cpp.s
+.PHONY : examples/exchange_client_example.s
 
 # target to generate assembly for a file
-src/client/simple_position_client.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/client/simple_position_client.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/client/simple_position_client.cpp.s
-.PHONY : src/client/simple_position_client.cpp.s
+examples/exchange_client_example.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/exchange_client_example.dir/build.make CMakeFiles/exchange_client_example.dir/examples/exchange_client_example.cpp.s
+.PHONY : examples/exchange_client_example.cpp.s
 
-src/client/simple_position_client_main.o: src/client/simple_position_client_main.cpp.o
-.PHONY : src/client/simple_position_client_main.o
+examples/simple_publisher_example.o: examples/simple_publisher_example.cpp.o
+.PHONY : examples/simple_publisher_example.o
 
 # target to build an object file
-src/client/simple_position_client_main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/client/simple_position_client_main.cpp.o
-.PHONY : src/client/simple_position_client_main.cpp.o
+examples/simple_publisher_example.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_publisher_example.dir/build.make CMakeFiles/simple_publisher_example.dir/examples/simple_publisher_example.cpp.o
+.PHONY : examples/simple_publisher_example.cpp.o
 
-src/client/simple_position_client_main.i: src/client/simple_position_client_main.cpp.i
-.PHONY : src/client/simple_position_client_main.i
+examples/simple_publisher_example.i: examples/simple_publisher_example.cpp.i
+.PHONY : examples/simple_publisher_example.i
 
 # target to preprocess a source file
-src/client/simple_position_client_main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/client/simple_position_client_main.cpp.i
-.PHONY : src/client/simple_position_client_main.cpp.i
+examples/simple_publisher_example.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_publisher_example.dir/build.make CMakeFiles/simple_publisher_example.dir/examples/simple_publisher_example.cpp.i
+.PHONY : examples/simple_publisher_example.cpp.i
 
-src/client/simple_position_client_main.s: src/client/simple_position_client_main.cpp.s
-.PHONY : src/client/simple_position_client_main.s
+examples/simple_publisher_example.s: examples/simple_publisher_example.cpp.s
+.PHONY : examples/simple_publisher_example.s
 
 # target to generate assembly for a file
-src/client/simple_position_client_main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/client/simple_position_client_main.cpp.s
-.PHONY : src/client/simple_position_client_main.cpp.s
+examples/simple_publisher_example.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_publisher_example.dir/build.make CMakeFiles/simple_publisher_example.dir/examples/simple_publisher_example.cpp.s
+.PHONY : examples/simple_publisher_example.cpp.s
+
+examples/simple_subscriber_example.o: examples/simple_subscriber_example.cpp.o
+.PHONY : examples/simple_subscriber_example.o
+
+# target to build an object file
+examples/simple_subscriber_example.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_subscriber_example.dir/build.make CMakeFiles/simple_subscriber_example.dir/examples/simple_subscriber_example.cpp.o
+.PHONY : examples/simple_subscriber_example.cpp.o
+
+examples/simple_subscriber_example.i: examples/simple_subscriber_example.cpp.i
+.PHONY : examples/simple_subscriber_example.i
+
+# target to preprocess a source file
+examples/simple_subscriber_example.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_subscriber_example.dir/build.make CMakeFiles/simple_subscriber_example.dir/examples/simple_subscriber_example.cpp.i
+.PHONY : examples/simple_subscriber_example.cpp.i
+
+examples/simple_subscriber_example.s: examples/simple_subscriber_example.cpp.s
+.PHONY : examples/simple_subscriber_example.s
+
+# target to generate assembly for a file
+examples/simple_subscriber_example.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_subscriber_example.dir/build.make CMakeFiles/simple_subscriber_example.dir/examples/simple_subscriber_example.cpp.s
+.PHONY : examples/simple_subscriber_example.cpp.s
+
+examples/test_publisher.o: examples/test_publisher.cpp.o
+.PHONY : examples/test_publisher.o
+
+# target to build an object file
+examples/test_publisher.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_publisher.dir/build.make CMakeFiles/test_publisher.dir/examples/test_publisher.cpp.o
+.PHONY : examples/test_publisher.cpp.o
+
+examples/test_publisher.i: examples/test_publisher.cpp.i
+.PHONY : examples/test_publisher.i
+
+# target to preprocess a source file
+examples/test_publisher.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_publisher.dir/build.make CMakeFiles/test_publisher.dir/examples/test_publisher.cpp.i
+.PHONY : examples/test_publisher.cpp.i
+
+examples/test_publisher.s: examples/test_publisher.cpp.s
+.PHONY : examples/test_publisher.s
+
+# target to generate assembly for a file
+examples/test_publisher.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_publisher.dir/build.make CMakeFiles/test_publisher.dir/examples/test_publisher.cpp.s
+.PHONY : examples/test_publisher.cpp.s
+
+examples/test_subscriber.o: examples/test_subscriber.cpp.o
+.PHONY : examples/test_subscriber.o
+
+# target to build an object file
+examples/test_subscriber.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_subscriber.dir/build.make CMakeFiles/test_subscriber.dir/examples/test_subscriber.cpp.o
+.PHONY : examples/test_subscriber.cpp.o
+
+examples/test_subscriber.i: examples/test_subscriber.cpp.i
+.PHONY : examples/test_subscriber.i
+
+# target to preprocess a source file
+examples/test_subscriber.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_subscriber.dir/build.make CMakeFiles/test_subscriber.dir/examples/test_subscriber.cpp.i
+.PHONY : examples/test_subscriber.cpp.i
+
+examples/test_subscriber.s: examples/test_subscriber.cpp.s
+.PHONY : examples/test_subscriber.s
+
+# target to generate assembly for a file
+examples/test_subscriber.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_subscriber.dir/build.make CMakeFiles/test_subscriber.dir/examples/test_subscriber.cpp.s
+.PHONY : examples/test_subscriber.cpp.s
+
+examples/two_client_demo.o: examples/two_client_demo.cpp.o
+.PHONY : examples/two_client_demo.o
+
+# target to build an object file
+examples/two_client_demo.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/two_client_demo.dir/build.make CMakeFiles/two_client_demo.dir/examples/two_client_demo.cpp.o
+.PHONY : examples/two_client_demo.cpp.o
+
+examples/two_client_demo.i: examples/two_client_demo.cpp.i
+.PHONY : examples/two_client_demo.i
+
+# target to preprocess a source file
+examples/two_client_demo.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/two_client_demo.dir/build.make CMakeFiles/two_client_demo.dir/examples/two_client_demo.cpp.i
+.PHONY : examples/two_client_demo.cpp.i
+
+examples/two_client_demo.s: examples/two_client_demo.cpp.s
+.PHONY : examples/two_client_demo.s
+
+# target to generate assembly for a file
+examples/two_client_demo.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/two_client_demo.dir/build.make CMakeFiles/two_client_demo.dir/examples/two_client_demo.cpp.s
+.PHONY : examples/two_client_demo.cpp.s
+
+src/client/position_client.o: src/client/position_client.cpp.o
+.PHONY : src/client/position_client.o
+
+# target to build an object file
+src/client/position_client.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/client/position_client.cpp.o
+.PHONY : src/client/position_client.cpp.o
+
+src/client/position_client.i: src/client/position_client.cpp.i
+.PHONY : src/client/position_client.i
+
+# target to preprocess a source file
+src/client/position_client.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/client/position_client.cpp.i
+.PHONY : src/client/position_client.cpp.i
+
+src/client/position_client.s: src/client/position_client.cpp.s
+.PHONY : src/client/position_client.s
+
+# target to generate assembly for a file
+src/client/position_client.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/client/position_client.cpp.s
+.PHONY : src/client/position_client.cpp.s
 
 src/common/logger.o: src/common/logger.cpp.o
 .PHONY : src/common/logger.o
 
 # target to build an object file
 src/common/logger.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/logger.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/logger.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/logger.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/common/logger.cpp.o
 .PHONY : src/common/logger.cpp.o
 
 src/common/logger.i: src/common/logger.cpp.i
@@ -290,9 +483,7 @@ src/common/logger.i: src/common/logger.cpp.i
 
 # target to preprocess a source file
 src/common/logger.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/logger.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/logger.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/logger.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/common/logger.cpp.i
 .PHONY : src/common/logger.cpp.i
 
 src/common/logger.s: src/common/logger.cpp.s
@@ -300,9 +491,7 @@ src/common/logger.s: src/common/logger.cpp.s
 
 # target to generate assembly for a file
 src/common/logger.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/logger.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/logger.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/logger.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/common/logger.cpp.s
 .PHONY : src/common/logger.cpp.s
 
 src/common/position.o: src/common/position.cpp.o
@@ -310,9 +499,7 @@ src/common/position.o: src/common/position.cpp.o
 
 # target to build an object file
 src/common/position.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/position.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/position.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/position.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/common/position.cpp.o
 .PHONY : src/common/position.cpp.o
 
 src/common/position.i: src/common/position.cpp.i
@@ -320,9 +507,7 @@ src/common/position.i: src/common/position.cpp.i
 
 # target to preprocess a source file
 src/common/position.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/position.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/position.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/position.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/common/position.cpp.i
 .PHONY : src/common/position.cpp.i
 
 src/common/position.s: src/common/position.cpp.s
@@ -330,91 +515,152 @@ src/common/position.s: src/common/position.cpp.s
 
 # target to generate assembly for a file
 src/common/position.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/position.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/position.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/position.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/common/position.cpp.s
 .PHONY : src/common/position.cpp.s
 
-src/common/simple_network.o: src/common/simple_network.cpp.o
-.PHONY : src/common/simple_network.o
+src/publisher/position_publisher.o: src/publisher/position_publisher.cpp.o
+.PHONY : src/publisher/position_publisher.o
 
 # target to build an object file
-src/common/simple_network.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/simple_network.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/simple_network.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/simple_network.cpp.o
-.PHONY : src/common/simple_network.cpp.o
+src/publisher/position_publisher.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/publisher/position_publisher.cpp.o
+.PHONY : src/publisher/position_publisher.cpp.o
 
-src/common/simple_network.i: src/common/simple_network.cpp.i
-.PHONY : src/common/simple_network.i
+src/publisher/position_publisher.i: src/publisher/position_publisher.cpp.i
+.PHONY : src/publisher/position_publisher.i
 
 # target to preprocess a source file
-src/common/simple_network.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/simple_network.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/simple_network.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/simple_network.cpp.i
-.PHONY : src/common/simple_network.cpp.i
+src/publisher/position_publisher.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/publisher/position_publisher.cpp.i
+.PHONY : src/publisher/position_publisher.cpp.i
 
-src/common/simple_network.s: src/common/simple_network.cpp.s
-.PHONY : src/common/simple_network.s
+src/publisher/position_publisher.s: src/publisher/position_publisher.cpp.s
+.PHONY : src/publisher/position_publisher.s
 
 # target to generate assembly for a file
-src/common/simple_network.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/common/simple_network.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_client.dir/build.make CMakeFiles/position_client.dir/src/common/simple_network.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/common/simple_network.cpp.s
-.PHONY : src/common/simple_network.cpp.s
+src/publisher/position_publisher.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/publisher/position_publisher.cpp.s
+.PHONY : src/publisher/position_publisher.cpp.s
 
-src/server/simple_position_server.o: src/server/simple_position_server.cpp.o
-.PHONY : src/server/simple_position_server.o
+src/shared_memory/media_driver_main.o: src/shared_memory/media_driver_main.cpp.o
+.PHONY : src/shared_memory/media_driver_main.o
 
 # target to build an object file
-src/server/simple_position_server.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/server/simple_position_server.cpp.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/server/simple_position_server.cpp.o
-.PHONY : src/server/simple_position_server.cpp.o
+src/shared_memory/media_driver_main.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/media_driver.dir/build.make CMakeFiles/media_driver.dir/src/shared_memory/media_driver_main.cpp.o
+.PHONY : src/shared_memory/media_driver_main.cpp.o
 
-src/server/simple_position_server.i: src/server/simple_position_server.cpp.i
-.PHONY : src/server/simple_position_server.i
+src/shared_memory/media_driver_main.i: src/shared_memory/media_driver_main.cpp.i
+.PHONY : src/shared_memory/media_driver_main.i
 
 # target to preprocess a source file
-src/server/simple_position_server.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/server/simple_position_server.cpp.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/server/simple_position_server.cpp.i
-.PHONY : src/server/simple_position_server.cpp.i
+src/shared_memory/media_driver_main.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/media_driver.dir/build.make CMakeFiles/media_driver.dir/src/shared_memory/media_driver_main.cpp.i
+.PHONY : src/shared_memory/media_driver_main.cpp.i
 
-src/server/simple_position_server.s: src/server/simple_position_server.cpp.s
-.PHONY : src/server/simple_position_server.s
+src/shared_memory/media_driver_main.s: src/shared_memory/media_driver_main.cpp.s
+.PHONY : src/shared_memory/media_driver_main.s
 
 # target to generate assembly for a file
-src/server/simple_position_server.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/server/simple_position_server.cpp.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/simple_test.dir/build.make CMakeFiles/simple_test.dir/src/server/simple_position_server.cpp.s
-.PHONY : src/server/simple_position_server.cpp.s
+src/shared_memory/media_driver_main.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/media_driver.dir/build.make CMakeFiles/media_driver.dir/src/shared_memory/media_driver_main.cpp.s
+.PHONY : src/shared_memory/media_driver_main.cpp.s
 
-src/server/simple_position_server_main.o: src/server/simple_position_server_main.cpp.o
-.PHONY : src/server/simple_position_server_main.o
+src/shared_memory/position_media_driver.o: src/shared_memory/position_media_driver.cpp.o
+.PHONY : src/shared_memory/position_media_driver.o
 
 # target to build an object file
-src/server/simple_position_server_main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/server/simple_position_server_main.cpp.o
-.PHONY : src/server/simple_position_server_main.cpp.o
+src/shared_memory/position_media_driver.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/position_media_driver.cpp.o
+.PHONY : src/shared_memory/position_media_driver.cpp.o
 
-src/server/simple_position_server_main.i: src/server/simple_position_server_main.cpp.i
-.PHONY : src/server/simple_position_server_main.i
+src/shared_memory/position_media_driver.i: src/shared_memory/position_media_driver.cpp.i
+.PHONY : src/shared_memory/position_media_driver.i
 
 # target to preprocess a source file
-src/server/simple_position_server_main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/server/simple_position_server_main.cpp.i
-.PHONY : src/server/simple_position_server_main.cpp.i
+src/shared_memory/position_media_driver.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/position_media_driver.cpp.i
+.PHONY : src/shared_memory/position_media_driver.cpp.i
 
-src/server/simple_position_server_main.s: src/server/simple_position_server_main.cpp.s
-.PHONY : src/server/simple_position_server_main.s
+src/shared_memory/position_media_driver.s: src/shared_memory/position_media_driver.cpp.s
+.PHONY : src/shared_memory/position_media_driver.s
 
 # target to generate assembly for a file
-src/server/simple_position_server_main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_server.dir/build.make CMakeFiles/position_server.dir/src/server/simple_position_server_main.cpp.s
-.PHONY : src/server/simple_position_server_main.cpp.s
+src/shared_memory/position_media_driver.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/position_media_driver.cpp.s
+.PHONY : src/shared_memory/position_media_driver.cpp.s
+
+src/shared_memory/sbe_encoding.o: src/shared_memory/sbe_encoding.cpp.o
+.PHONY : src/shared_memory/sbe_encoding.o
+
+# target to build an object file
+src/shared_memory/sbe_encoding.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/sbe_encoding.cpp.o
+.PHONY : src/shared_memory/sbe_encoding.cpp.o
+
+src/shared_memory/sbe_encoding.i: src/shared_memory/sbe_encoding.cpp.i
+.PHONY : src/shared_memory/sbe_encoding.i
+
+# target to preprocess a source file
+src/shared_memory/sbe_encoding.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/sbe_encoding.cpp.i
+.PHONY : src/shared_memory/sbe_encoding.cpp.i
+
+src/shared_memory/sbe_encoding.s: src/shared_memory/sbe_encoding.cpp.s
+.PHONY : src/shared_memory/sbe_encoding.s
+
+# target to generate assembly for a file
+src/shared_memory/sbe_encoding.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/sbe_encoding.cpp.s
+.PHONY : src/shared_memory/sbe_encoding.cpp.s
+
+src/shared_memory/shared_memory_manager.o: src/shared_memory/shared_memory_manager.cpp.o
+.PHONY : src/shared_memory/shared_memory_manager.o
+
+# target to build an object file
+src/shared_memory/shared_memory_manager.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/shared_memory_manager.cpp.o
+.PHONY : src/shared_memory/shared_memory_manager.cpp.o
+
+src/shared_memory/shared_memory_manager.i: src/shared_memory/shared_memory_manager.cpp.i
+.PHONY : src/shared_memory/shared_memory_manager.i
+
+# target to preprocess a source file
+src/shared_memory/shared_memory_manager.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/shared_memory_manager.cpp.i
+.PHONY : src/shared_memory/shared_memory_manager.cpp.i
+
+src/shared_memory/shared_memory_manager.s: src/shared_memory/shared_memory_manager.cpp.s
+.PHONY : src/shared_memory/shared_memory_manager.s
+
+# target to generate assembly for a file
+src/shared_memory/shared_memory_manager.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/shared_memory/shared_memory_manager.cpp.s
+.PHONY : src/shared_memory/shared_memory_manager.cpp.s
+
+src/subscriber/position_subscriber.o: src/subscriber/position_subscriber.cpp.o
+.PHONY : src/subscriber/position_subscriber.o
+
+# target to build an object file
+src/subscriber/position_subscriber.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/subscriber/position_subscriber.cpp.o
+.PHONY : src/subscriber/position_subscriber.cpp.o
+
+src/subscriber/position_subscriber.i: src/subscriber/position_subscriber.cpp.i
+.PHONY : src/subscriber/position_subscriber.i
+
+# target to preprocess a source file
+src/subscriber/position_subscriber.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/subscriber/position_subscriber.cpp.i
+.PHONY : src/subscriber/position_subscriber.cpp.i
+
+src/subscriber/position_subscriber.s: src/subscriber/position_subscriber.cpp.s
+.PHONY : src/subscriber/position_subscriber.s
+
+# target to generate assembly for a file
+src/subscriber/position_subscriber.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/position_shm.dir/build.make CMakeFiles/position_shm.dir/src/subscriber/position_subscriber.cpp.s
+.PHONY : src/subscriber/position_subscriber.cpp.s
 
 # Help Target
 help:
@@ -428,33 +674,63 @@ help:
 	@echo "... install/strip"
 	@echo "... list_install_components"
 	@echo "... rebuild_cache"
-	@echo "... position_client"
-	@echo "... position_server"
-	@echo "... simple_test"
-	@echo "... examples/simple_test.o"
-	@echo "... examples/simple_test.i"
-	@echo "... examples/simple_test.s"
-	@echo "... src/client/simple_position_client.o"
-	@echo "... src/client/simple_position_client.i"
-	@echo "... src/client/simple_position_client.s"
-	@echo "... src/client/simple_position_client_main.o"
-	@echo "... src/client/simple_position_client_main.i"
-	@echo "... src/client/simple_position_client_main.s"
+	@echo "... demo_test"
+	@echo "... exchange_client_example"
+	@echo "... media_driver"
+	@echo "... position_shm"
+	@echo "... simple_publisher_example"
+	@echo "... simple_subscriber_example"
+	@echo "... test_publisher"
+	@echo "... test_subscriber"
+	@echo "... two_client_demo"
+	@echo "... examples/demo_test.o"
+	@echo "... examples/demo_test.i"
+	@echo "... examples/demo_test.s"
+	@echo "... examples/exchange_client_example.o"
+	@echo "... examples/exchange_client_example.i"
+	@echo "... examples/exchange_client_example.s"
+	@echo "... examples/simple_publisher_example.o"
+	@echo "... examples/simple_publisher_example.i"
+	@echo "... examples/simple_publisher_example.s"
+	@echo "... examples/simple_subscriber_example.o"
+	@echo "... examples/simple_subscriber_example.i"
+	@echo "... examples/simple_subscriber_example.s"
+	@echo "... examples/test_publisher.o"
+	@echo "... examples/test_publisher.i"
+	@echo "... examples/test_publisher.s"
+	@echo "... examples/test_subscriber.o"
+	@echo "... examples/test_subscriber.i"
+	@echo "... examples/test_subscriber.s"
+	@echo "... examples/two_client_demo.o"
+	@echo "... examples/two_client_demo.i"
+	@echo "... examples/two_client_demo.s"
+	@echo "... src/client/position_client.o"
+	@echo "... src/client/position_client.i"
+	@echo "... src/client/position_client.s"
 	@echo "... src/common/logger.o"
 	@echo "... src/common/logger.i"
 	@echo "... src/common/logger.s"
 	@echo "... src/common/position.o"
 	@echo "... src/common/position.i"
 	@echo "... src/common/position.s"
-	@echo "... src/common/simple_network.o"
-	@echo "... src/common/simple_network.i"
-	@echo "... src/common/simple_network.s"
-	@echo "... src/server/simple_position_server.o"
-	@echo "... src/server/simple_position_server.i"
-	@echo "... src/server/simple_position_server.s"
-	@echo "... src/server/simple_position_server_main.o"
-	@echo "... src/server/simple_position_server_main.i"
-	@echo "... src/server/simple_position_server_main.s"
+	@echo "... src/publisher/position_publisher.o"
+	@echo "... src/publisher/position_publisher.i"
+	@echo "... src/publisher/position_publisher.s"
+	@echo "... src/shared_memory/media_driver_main.o"
+	@echo "... src/shared_memory/media_driver_main.i"
+	@echo "... src/shared_memory/media_driver_main.s"
+	@echo "... src/shared_memory/position_media_driver.o"
+	@echo "... src/shared_memory/position_media_driver.i"
+	@echo "... src/shared_memory/position_media_driver.s"
+	@echo "... src/shared_memory/sbe_encoding.o"
+	@echo "... src/shared_memory/sbe_encoding.i"
+	@echo "... src/shared_memory/sbe_encoding.s"
+	@echo "... src/shared_memory/shared_memory_manager.o"
+	@echo "... src/shared_memory/shared_memory_manager.i"
+	@echo "... src/shared_memory/shared_memory_manager.s"
+	@echo "... src/subscriber/position_subscriber.o"
+	@echo "... src/subscriber/position_subscriber.i"
+	@echo "... src/subscriber/position_subscriber.s"
 .PHONY : help
 
 

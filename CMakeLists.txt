@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(PositionDistributor VERSION 1.0.0 LANGUAGES CXX)
+project(PositionDistributor VERSION 2.0.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -17,44 +17,87 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 # Include directories
 include_directories(include)
 
-# Source files
+# Find required packages
+find_package(Threads REQUIRED)
+
+# Common source files
 set(COMMON_SOURCES
     src/common/position.cpp
     src/common/logger.cpp
-    src/common/simple_network.cpp
 )
 
-set(SERVER_SOURCES
-    src/server/simple_position_server.cpp
-    src/server/simple_position_server_main.cpp
-    ${COMMON_SOURCES}
+# Shared memory implementation sources
+set(SHARED_MEMORY_SOURCES
+    src/shared_memory/sbe_encoding.cpp
+    src/shared_memory/shared_memory_manager.cpp
+    src/shared_memory/position_media_driver.cpp
+)
+
+set(PUBLISHER_SOURCES
+    src/publisher/position_publisher.cpp
+)
+
+set(SUBSCRIBER_SOURCES
+    src/subscriber/position_subscriber.cpp
 )
 
 set(CLIENT_SOURCES
-    src/client/simple_position_client.cpp
-    src/client/simple_position_client_main.cpp
+    src/client/position_client.cpp
+)
+
+# Create shared memory library
+add_library(position_shm STATIC
     ${COMMON_SOURCES}
+    ${SHARED_MEMORY_SOURCES}
+    ${PUBLISHER_SOURCES}
+    ${SUBSCRIBER_SOURCES}
+    ${CLIENT_SOURCES}
 )
 
-# Create executables
-add_executable(position_server ${SERVER_SOURCES})
-add_executable(position_client ${CLIENT_SOURCES})
+target_link_libraries(position_shm Threads::Threads)
 
-# Link libraries
-target_link_libraries(position_server pthread)
-target_link_libraries(position_client pthread)
-
-# Create example executable
-add_executable(simple_test 
-    examples/simple_test.cpp
-    src/common/position.cpp
-    src/common/logger.cpp
-    src/common/simple_network.cpp
-    src/server/simple_position_server.cpp
-    src/client/simple_position_client.cpp
+# Media Driver executable
+add_executable(media_driver
+    src/shared_memory/media_driver_main.cpp
 )
+target_link_libraries(media_driver position_shm Threads::Threads)
 
-target_link_libraries(simple_test pthread)
+# Example executables
+add_executable(exchange_client_example
+    examples/exchange_client_example.cpp
+)
+target_link_libraries(exchange_client_example position_shm Threads::Threads)
+
+add_executable(simple_publisher_example
+    examples/simple_publisher_example.cpp
+)
+target_link_libraries(simple_publisher_example position_shm Threads::Threads)
+
+add_executable(simple_subscriber_example
+    examples/simple_subscriber_example.cpp
+)
+target_link_libraries(simple_subscriber_example position_shm Threads::Threads)
+
+add_executable(demo_test
+    examples/demo_test.cpp
+)
+target_link_libraries(demo_test position_shm Threads::Threads)
+
+add_executable(two_client_demo
+    examples/two_client_demo.cpp
+)
+target_link_libraries(two_client_demo position_shm Threads::Threads)
+
+add_executable(test_publisher
+    examples/test_publisher.cpp
+)
+target_link_libraries(test_publisher position_shm Threads::Threads)
+
+add_executable(test_subscriber
+    examples/test_subscriber.cpp
+)
+target_link_libraries(test_subscriber position_shm Threads::Threads)
 
 # Installation
-install(TARGETS position_server position_client DESTINATION bin)
+install(TARGETS media_driver exchange_client_example simple_publisher_example simple_subscriber_example DESTINATION bin)
+install(DIRECTORY include/ DESTINATION include)

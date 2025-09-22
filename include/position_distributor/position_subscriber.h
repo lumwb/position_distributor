@@ -1,0 +1,132 @@
+#pragma once
+
+#include "position_distributor/position_media_driver.h"
+#include "position_distributor/sbe_encoding.h"
+#include "position_distributor/position.h"
+#include <string>
+#include <vector>
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include <chrono>
+#include <functional>
+#include <unordered_map>
+
+namespace position_distributor
+{
+
+    // Decoded position update for callback
+    struct PositionUpdate
+    {
+        std::string strategy_id;
+        uint64_t timestamp;
+        uint64_t sequence_number;
+        std::vector<SymbolPosition> positions;
+
+        PositionUpdate() = default;
+        PositionUpdate(const std::string &strategy, uint64_t ts, uint64_t seq_num,
+                       const std::vector<SymbolPosition> &pos)
+            : strategy_id(strategy), timestamp(ts), sequence_number(seq_num), positions(pos)
+        {
+        }
+
+        std::string toString() const
+        {
+            std::string result = "PositionUpdate{strategy=" + strategy_id +
+                                 ", seq=" + std::to_string(sequence_number) +
+                                 ", positions=[";
+            for (size_t i = 0; i < positions.size(); ++i)
+            {
+                if (i > 0)
+                    result += ", ";
+                result += positions[i].toString();
+            }
+            result += "]}";
+            return result;
+        }
+    };
+
+    // Subscriber configuration
+    struct SubscriberConfig
+    {
+        std::string topic;                           // Topic to subscribe to
+        std::chrono::milliseconds poll_interval;     // How often to poll for messages
+        std::chrono::milliseconds activity_interval; // How often to report activity
+        bool enable_ordering_check;                  // Check sequence numbers for ordering
+
+        SubscriberConfig(const std::string &t = "")
+            : topic(t), poll_interval(1), activity_interval(1000), enable_ordering_check(true)
+        {
+        }
+    };
+
+    // Position subscriber for shared memory transport
+    class PositionSubscriber
+    {
+    public:
+        using PositionUpdateCallback = std::function<void(const PositionUpdate &)>;
+        using ErrorCallback = std::function<void(const std::string &, ConnectionError)>;
+
+        explicit PositionSubscriber(const SubscriberConfig &config);
+        ~PositionSubscriber();
+
+        // Lifecycle
+        bool connect();
+        void disconnect();
+        bool isConnected() const { return connected_.load(); }
+
+        // Subscription interface
+        void setPositionUpdateCallback(PositionUpdateCallback callback);
+        void setErrorCallback(ErrorCallback callback);
+
+        // Configuration
+        const SubscriberConfig &getConfig() const { return config_; }
+
+        // Statistics
+        uint64_t getReceivedCount() const { return received_count_.load(); }
+        uint64_t getOrderingErrorCount() const { return ordering_errors_.load(); }
+        uint64_t getLastSequenceNumber() const { return last_sequence_number_.load(); }
+
+        // Manual polling (if needed)
+        bool pollMessages();
+
+    private:
+        SubscriberConfig config_;
+        std::atomic<bool> connected_;
+        std::atomic<bool> running_;
+
+        // Media driver integration
+        PositionMediaDriver *media_driver_;
+        uint32_t subscriber_id_;
+        std::shared_ptr<TopicChannel> topic_channel_;
+
+        // Message processing
+        std::thread message_thread_;
+        std::thread activity_thread_;
+
+        // Callbacks
+        PositionUpdateCallback position_callback_;
+        ErrorCallback error_callback_;
+        std::mutex callback_mutex_;
+
+        // Ordering and statistics
+        std::atomic<uint64_t> last_sequence_number_;
+        std::atomic<uint64_t> received_count_;
+        std::atomic<uint64_t> ordering_errors_;
+        std::unordered_map<std::string, uint64_t> strategy_sequence_map_;
+        std::mutex sequence_mutex_;
+
+        // Internal methods
+        void messageLoop();
+        void activityLoop();
+        void processMessage(const uint8_t *data, uint32_t length);
+        bool validateOrdering(const std::string &strategy_id, uint64_t sequence_number);
+        void handleError(ConnectionError error);
+        void updateActivity();
+
+        // Disable copy/move
+        PositionSubscriber(const PositionSubscriber &) = delete;
+        PositionSubscriber &operator=(const PositionSubscriber &) = delete;
+    };
+
+} // namespace position_distributor
