@@ -64,7 +64,7 @@ namespace position_distributor
 
         // Start background threads
         message_thread_ = std::thread(&PositionSubscriber::messageLoop, this);
-        activity_thread_ = std::thread(&PositionSubscriber::activityLoop, this);
+        heartbeat_thread_ = std::thread(&PositionSubscriber::heartbeatLoop, this);
 
         LOG_INFO("Subscriber connected to topic '" + config_.topic + "' with ID: " + std::to_string(subscriber_id_));
         return true;
@@ -88,9 +88,9 @@ namespace position_distributor
             message_thread_.join();
         }
 
-        if (activity_thread_.joinable())
+        if (heartbeat_thread_.joinable())
         {
-            activity_thread_.join();
+            heartbeat_thread_.join();
         }
 
         // Unsubscribe from topic channel
@@ -118,6 +118,12 @@ namespace position_distributor
         error_callback_ = callback;
     }
 
+    void PositionSubscriber::setPublisherDisconnectCallback(PublisherDisconnectCallback callback)
+    {
+        std::lock_guard<std::mutex> lock(callback_mutex_);
+        publisher_disconnect_callback_ = callback;
+    }
+
     bool PositionSubscriber::pollMessages()
     {
         if (!connected_.load() || !topic_channel_)
@@ -138,7 +144,22 @@ namespace position_distributor
             if (connected_.load() && topic_channel_)
             {
                 pollMessages();
-                updateActivity();
+                
+                // Check producer heartbeat
+                if (!topic_channel_->isProducerAlive())
+                {
+                    LOG_WARN("Producer heartbeat lost for topic: " + config_.topic);
+                    handleError(ConnectionError::PRODUCER_STALE);
+                    
+                    // Notify publisher disconnect callback
+                    {
+                        std::lock_guard<std::mutex> lock(callback_mutex_);
+                        if (publisher_disconnect_callback_)
+                        {
+                            publisher_disconnect_callback_(config_.topic);
+                        }
+                    }
+                }
             }
 
             std::this_thread::sleep_for(config_.poll_interval);
@@ -147,21 +168,34 @@ namespace position_distributor
         LOG_INFO("Message processing thread stopped for topic: " + config_.topic);
     }
 
-    void PositionSubscriber::activityLoop()
+    void PositionSubscriber::heartbeatLoop()
     {
-        LOG_INFO("Activity reporting thread started for topic: " + config_.topic);
+        LOG_INFO("Heartbeat thread started for topic: " + config_.topic);
 
         while (running_.load())
         {
-            std::this_thread::sleep_for(config_.activity_interval);
+            std::this_thread::sleep_for(config_.activity_interval); // Reuse activity_interval for heartbeat frequency
 
             if (!running_.load())
                 break;
 
-            updateActivity();
+            // Update subscriber heartbeat in shared memory
+            if (connected_.load() && topic_channel_)
+            {
+                // The subscriber heartbeat is updated automatically when polling messages
+                // But we need to ensure it's updated even when no messages are coming
+                // We can do this by sending a dummy poll or accessing the ring buffer directly
+                
+                // For now, let's use a debug log to show the heartbeat is running
+                // In production, we might want to access the shared memory directly
+                LOG_DEBUG("Subscriber heartbeat for topic: " + config_.topic);
+                
+                // Force a poll to ensure subscriber heartbeat is updated
+                pollMessages();
+            }
         }
 
-        LOG_INFO("Activity reporting thread stopped for topic: " + config_.topic);
+        LOG_INFO("Heartbeat thread stopped for topic: " + config_.topic);
     }
 
     void PositionSubscriber::processMessage(const uint8_t *data, uint32_t length)
@@ -267,14 +301,5 @@ namespace position_distributor
         }
     }
 
-    void PositionSubscriber::updateActivity()
-    {
-        // For now, just log that we're active
-        // In a full implementation, this would notify the media driver
-        if (connected_.load() && subscriber_id_ != 0)
-        {
-            LOG_DEBUG("Subscriber activity for topic: " + config_.topic);
-        }
-    }
 
 } // namespace position_distributor

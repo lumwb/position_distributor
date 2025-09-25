@@ -36,6 +36,7 @@ namespace position_distributor
     public:
         using PositionUpdateCallback = std::function<void(const PositionUpdate &)>;
         using ErrorCallback = std::function<void(const std::string &, ConnectionError)>;
+        using PublisherDisconnectCallback = std::function<void(const std::string &)>; // exchange (for per-exchange callbacks)
 
         explicit PositionClient(const PositionClientConfig &config);
         ~PositionClient();
@@ -53,12 +54,13 @@ namespace position_distributor
                               const std::vector<std::pair<std::string, double>> &positions);
 
         // Subscription management (for other exchanges)
-        bool subscribeToExchange(const std::string &exchange);
+        bool subscribeToExchange(const std::string &exchange,
+                                 PositionUpdateCallback position_callback,
+                                 PublisherDisconnectCallback disconnect_callback = nullptr);
         bool unsubscribeFromExchange(const std::string &exchange);
         std::vector<std::string> getSubscribedExchanges() const;
 
-        // Callbacks
-        void setPositionUpdateCallback(PositionUpdateCallback callback);
+        // Global error callback (for connection issues)
         void setErrorCallback(ErrorCallback callback);
 
         // Configuration and statistics
@@ -91,11 +93,9 @@ namespace position_distributor
         std::mutex callback_mutex_;
 
         // Callbacks
-        PositionUpdateCallback position_callback_;
         ErrorCallback error_callback_;
 
         // Internal methods
-        void handlePositionUpdate(const PositionUpdate &update);
         void handleError(const std::string &topic, ConnectionError error);
         std::string getTopicForExchange(const std::string &exchange) const;
 

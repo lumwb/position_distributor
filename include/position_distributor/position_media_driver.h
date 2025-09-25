@@ -20,6 +20,7 @@ namespace position_distributor
         HEARTBEAT_LOST,
         SLOW_CONSUMER,
         CORRUPTED_MEMORY,
+        PRODUCER_STALE,
         UNKNOWN_ERROR
     };
 

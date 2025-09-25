@@ -59,6 +59,20 @@ void printStatistics(const PositionClient &client)
     std::cout << "=========================" << std::endl;
 }
 
+void printUsage(const char *program_name)
+{
+    std::cerr << "Usage: " << program_name << " [OPTIONS]" << std::endl;
+    std::cerr << "Options:" << std::endl;
+    std::cerr << "  -p <exchange>    Publisher exchange (optional)" << std::endl;
+    std::cerr << "  -s <exchange>    Subscribe to exchange (can be used multiple times)" << std::endl;
+    std::cerr << "  -h               Show this help" << std::endl;
+    std::cerr << std::endl;
+    std::cerr << "Examples:" << std::endl;
+    std::cerr << "  " << program_name << " -p BINANCE -s COINBASE -s KRAKEN  # Publish BINANCE, subscribe to COINBASE & KRAKEN" << std::endl;
+    std::cerr << "  " << program_name << " -p BINANCE                        # Publish BINANCE only" << std::endl;
+    std::cerr << "  " << program_name << " -s BINANCE -s COINBASE            # Subscribe only (no publishing)" << std::endl;
+}
+
 int main(int argc, char *argv[])
 {
     // Set up signal handling
@@ -66,19 +80,52 @@ int main(int argc, char *argv[])
     signal(SIGTERM, signalHandler);
 
     // Parse command line arguments
-    if (argc < 2)
-    {
-        std::cerr << "Usage: " << argv[0] << " <exchange> [subscribe_to_exchange1] [subscribe_to_exchange2] ..." << std::endl;
-        std::cerr << "Example: " << argv[0] << " BINANCE COINBASE KRAKEN" << std::endl;
-        return 1;
-    }
-
-    std::string exchange = argv[1];
+    std::string exchange = ""; // Publisher exchange
     std::vector<std::string> subscribe_to;
 
-    for (int i = 2; i < argc; ++i)
+    for (int i = 1; i < argc; ++i)
     {
-        subscribe_to.push_back(argv[i]);
+        std::string arg = argv[i];
+
+        if (arg == "-h" || arg == "--help")
+        {
+            printUsage(argv[0]);
+            return 0;
+        }
+        else if (arg == "-p")
+        {
+            if (i + 1 >= argc)
+            {
+                std::cerr << "Error: -p requires an exchange name" << std::endl;
+                printUsage(argv[0]);
+                return 1;
+            }
+            exchange = argv[++i];
+        }
+        else if (arg == "-s")
+        {
+            if (i + 1 >= argc)
+            {
+                std::cerr << "Error: -s requires an exchange name" << std::endl;
+                printUsage(argv[0]);
+                return 1;
+            }
+            subscribe_to.push_back(argv[++i]);
+        }
+        else
+        {
+            std::cerr << "Error: Unknown option '" << arg << "'" << std::endl;
+            printUsage(argv[0]);
+            return 1;
+        }
+    }
+
+    // Validate arguments
+    if (exchange.empty() && subscribe_to.empty())
+    {
+        std::cerr << "Error: Must specify at least one publisher (-p) or subscriber (-s)" << std::endl;
+        printUsage(argv[0]);
+        return 1;
     }
 
     // Set log level
@@ -101,6 +148,14 @@ int main(int argc, char *argv[])
 
     try
     {
+        // Handle subscriber-only mode
+        bool is_publisher_mode = !exchange.empty();
+        if (!is_publisher_mode)
+        {
+            exchange = "SUBSCRIBER_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+            std::cout << "Subscriber-only mode: Using dummy publisher exchange: " << exchange << std::endl;
+        }
+
         // Create client configuration
         PositionClientConfig config(exchange);
         config.subscribed_exchanges = subscribe_to;
@@ -108,8 +163,7 @@ int main(int argc, char *argv[])
         // Create position client
         g_client = std::make_unique<PositionClient>(config);
 
-        // Set callbacks
-        g_client->setPositionUpdateCallback(onPositionUpdate);
+        // Set error callback
         g_client->setErrorCallback(onError);
 
         // Connect to media driver
@@ -119,7 +173,38 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        std::cout << "Connected! Publishing random positions every 3 seconds..." << std::endl;
+        // Set up per-exchange subscriptions with callbacks
+        // (Note: connect() already subscribes to exchanges from config, but without callbacks)
+        for (const std::string &exchange_to_sub : subscribe_to)
+        {
+            // Resubscribe with proper callbacks
+            g_client->unsubscribeFromExchange(exchange_to_sub); // First unsubscribe the one without callbacks
+
+            // Subscribe with position update and disconnect callbacks
+            auto position_callback = [exchange_to_sub](const PositionUpdate &update)
+            {
+                std::cout << "[" << exchange_to_sub << "] RECEIVED: " << update.toString() << std::endl;
+            };
+
+            auto disconnect_callback = [exchange_to_sub](const std::string &exchange)
+            {
+                std::cout << "[" << exchange << "] PUBLISHER DISCONNECTED!" << std::endl;
+            };
+
+            if (!g_client->subscribeToExchange(exchange_to_sub, position_callback, disconnect_callback))
+            {
+                std::cerr << "Failed to subscribe to exchange: " << exchange_to_sub << std::endl;
+            }
+        }
+
+        if (is_publisher_mode)
+        {
+            std::cout << "Connected! Publishing random positions every 3 seconds..." << std::endl;
+        }
+        else
+        {
+            std::cout << "Connected! Subscriber-only mode - waiting for position updates..." << std::endl;
+        }
         std::cout << "Press Ctrl+C to stop." << std::endl;
 
         // Random number generator for position simulation
@@ -142,8 +227,8 @@ int main(int argc, char *argv[])
         {
             auto now = std::chrono::steady_clock::now();
 
-            // Publish positions periodically
-            if (now - last_publish_time >= publish_interval)
+            // Publish positions periodically (only in publisher mode)
+            if (is_publisher_mode && now - last_publish_time >= publish_interval)
             {
                 // Generate random positions
                 int num_positions = symbol_count_dist(gen);

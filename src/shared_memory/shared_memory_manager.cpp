@@ -420,6 +420,62 @@ namespace position_distributor
             .count();
     }
 
+    void SharedMemoryRingBuffer::sendHeartbeat()
+    {
+        if (!header_)
+            return;
+        header_->producer_heartbeat_ns.store(nowNanos(), std::memory_order_release);
+    }
+
+    bool SharedMemoryRingBuffer::isProducerAlive(uint64_t timeout_ns) const
+    {
+        if (!header_)
+            return false;
+        uint64_t last_heartbeat = header_->producer_heartbeat_ns.load(std::memory_order_acquire);
+        if (last_heartbeat == 0)
+            return true; // Producer hasn't started heartbeating yet
+        return (nowNanos() - last_heartbeat) <= timeout_ns;
+    }
+
+    bool SharedMemoryRingBuffer::isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns) const
+    {
+        if (!header_ || !handle.isValid())
+            return false;
+
+        auto &slot = header_->subs[handle.index];
+        if (slot.active.load(std::memory_order_acquire) == 0)
+            return false; // Not active
+        if (slot.generation != handle.generation)
+            return false; // Stale handle
+
+        uint64_t last_heartbeat = slot.last_heartbeat_ns.load(std::memory_order_acquire);
+        if (last_heartbeat == 0)
+            return true; // Subscriber hasn't started heartbeating yet
+        return (nowNanos() - last_heartbeat) <= timeout_ns;
+    }
+
+    void SharedMemoryRingBuffer::checkSubscriberHeartbeats(uint64_t timeout_ns) const
+    {
+        if (!header_)
+            return;
+
+        uint64_t now = nowNanos();
+        for (uint32_t i = 0; i < MAX_SUBSCRIBERS; ++i)
+        {
+            auto &slot = header_->subs[i];
+            if (slot.active.load(std::memory_order_acquire) == 1)
+            {
+                uint64_t last_heartbeat = slot.last_heartbeat_ns.load(std::memory_order_acquire);
+                if (last_heartbeat > 0 && (now - last_heartbeat) > timeout_ns)
+                {
+                    LOG_WARN("Subscriber heartbeat lost - slot: " + std::to_string(i) +
+                             " name: " + std::string(slot.name) + " PID: " + std::to_string(slot.pid) +
+                             " for topic: " + topic_);
+                }
+            }
+        }
+    }
+
     bool SharedMemoryRingBuffer::isOverrun(uint64_t cursor) const
     {
         const uint64_t prod = header_->producer_pos.load(std::memory_order_acquire);
@@ -651,6 +707,32 @@ namespace position_distributor
     {
         std::hash<std::string> hasher;
         return static_cast<uint32_t>(hasher(topic));
+    }
+
+    void TopicChannel::sendHeartbeat()
+    {
+        if (ring_buffer_)
+        {
+            ring_buffer_->sendHeartbeat();
+        }
+    }
+
+    bool TopicChannel::isProducerAlive(uint64_t timeout_ns) const
+    {
+        return ring_buffer_ ? ring_buffer_->isProducerAlive(timeout_ns) : false;
+    }
+
+    bool TopicChannel::isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns) const
+    {
+        return ring_buffer_ ? ring_buffer_->isSubscriberAlive(handle, timeout_ns) : false;
+    }
+
+    void TopicChannel::checkSubscriberHeartbeats(uint64_t timeout_ns) const
+    {
+        if (ring_buffer_)
+        {
+            ring_buffer_->checkSubscriberHeartbeats(timeout_ns);
+        }
     }
 
     // SharedMemoryManager implementation

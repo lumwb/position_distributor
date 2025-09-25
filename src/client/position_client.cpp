@@ -42,10 +42,10 @@ namespace position_distributor
             return false;
         }
 
-        // Subscribe to configured exchanges
+        // Subscribe to configured exchanges (with no callbacks - user must set them later)
         for (const std::string &exchange : config_.subscribed_exchanges)
         {
-            if (!subscribeToExchange(exchange))
+            if (!subscribeToExchange(exchange, nullptr, nullptr))
             {
                 LOG_WARN("Failed to subscribe to exchange: " + exchange);
                 // Continue with other subscriptions
@@ -129,7 +129,9 @@ namespace position_distributor
         return publisher_->publishPositions(strategy_id, positions);
     }
 
-    bool PositionClient::subscribeToExchange(const std::string &exchange)
+    bool PositionClient::subscribeToExchange(const std::string &exchange,
+                                             PositionUpdateCallback position_callback,
+                                             PublisherDisconnectCallback disconnect_callback)
     {
         if (exchange.empty())
         {
@@ -159,18 +161,28 @@ namespace position_distributor
         // Create subscriber
         auto subscriber = std::make_unique<PositionSubscriber>(sub_config);
 
-        // Set callbacks
-        auto position_callback = [this](const PositionUpdate &update)
+        // Set callbacks - use the provided position callback directly
+        if (position_callback)
         {
-            this->handlePositionUpdate(update);
-        };
-        subscriber->setPositionUpdateCallback(position_callback);
+            subscriber->setPositionUpdateCallback(position_callback);
+        }
 
+        // Set error callback to use our internal error handler
         auto error_callback = [this](const std::string &topic, ConnectionError error)
         {
             this->handleError(topic, error);
         };
         subscriber->setErrorCallback(error_callback);
+
+        // Set publisher disconnect callback if provided
+        if (disconnect_callback)
+        {
+            auto publisher_disconnect = [disconnect_callback, exchange](const std::string &topic)
+            {
+                disconnect_callback(exchange); // Pass exchange name instead of topic
+            };
+            subscriber->setPublisherDisconnectCallback(publisher_disconnect);
+        }
 
         // Connect subscriber
         if (!subscriber->connect())
@@ -218,12 +230,6 @@ namespace position_distributor
         }
 
         return exchanges;
-    }
-
-    void PositionClient::setPositionUpdateCallback(PositionUpdateCallback callback)
-    {
-        std::lock_guard<std::mutex> lock(callback_mutex_);
-        position_callback_ = callback;
     }
 
     void PositionClient::setErrorCallback(ErrorCallback callback)
@@ -308,17 +314,6 @@ namespace position_distributor
         }
 
         return polled_any;
-    }
-
-    void PositionClient::handlePositionUpdate(const PositionUpdate &update)
-    {
-        LOG_DEBUG("Received position update: " + update.toString());
-
-        std::lock_guard<std::mutex> lock(callback_mutex_);
-        if (position_callback_)
-        {
-            position_callback_(update);
-        }
     }
 
     void PositionClient::handleError(const std::string &topic, ConnectionError error)

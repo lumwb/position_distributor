@@ -177,10 +177,17 @@ namespace position_distributor
             return false;
         }
 
-        // For now, just update our local heartbeat time
-        // In a full implementation, this would send a heartbeat message
+        // Update local heartbeat time
         std::lock_guard<std::mutex> lock(heartbeat_mutex_);
         last_heartbeat_ = std::chrono::steady_clock::now();
+
+        // Update shared memory producer heartbeat
+        auto &shm_manager = SharedMemoryManager::instance();
+        auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
+        if (topic_channel)
+        {
+            topic_channel->sendHeartbeat();
+        }
         LOG_DEBUG("Sent heartbeat for topic: " + config_.topic);
 
         return true;
@@ -207,6 +214,14 @@ namespace position_distributor
             {
                 LOG_WARN("Heartbeat failed for topic: " + config_.topic);
                 // Continue trying - don't break the loop on single failure
+            }
+
+            // Check for subscriber heartbeat timeouts
+            auto &shm_manager = SharedMemoryManager::instance();
+            auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
+            if (topic_channel)
+            {
+                topic_channel->checkSubscriberHeartbeats();
             }
         }
 

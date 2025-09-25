@@ -68,41 +68,6 @@ add_executable(exchange_client_example
 )
 target_link_libraries(exchange_client_example position_shm Threads::Threads)
 
-add_executable(simple_publisher_example
-    examples/simple_publisher_example.cpp
-)
-target_link_libraries(simple_publisher_example position_shm Threads::Threads)
-
-add_executable(simple_subscriber_example
-    examples/simple_subscriber_example.cpp
-)
-target_link_libraries(simple_subscriber_example position_shm Threads::Threads)
-
-add_executable(demo_test
-    examples/demo_test.cpp
-)
-target_link_libraries(demo_test position_shm Threads::Threads)
-
-add_executable(two_client_demo
-    examples/two_client_demo.cpp
-)
-target_link_libraries(two_client_demo position_shm Threads::Threads)
-
-add_executable(test_publisher
-    examples/test_publisher.cpp
-)
-target_link_libraries(test_publisher position_shm Threads::Threads)
-
-add_executable(test_subscriber
-    examples/test_subscriber.cpp
-)
-target_link_libraries(test_subscriber position_shm Threads::Threads)
-
-add_executable(multi_subscriber_demo
-    examples/multi_subscriber_demo.cpp
-)
-target_link_libraries(multi_subscriber_demo position_shm Threads::Threads)
-
 # Installation
-install(TARGETS media_driver exchange_client_example simple_publisher_example simple_subscriber_example DESTINATION bin)
+install(TARGETS media_driver exchange_client_example DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)

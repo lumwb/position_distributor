@@ -87,6 +87,9 @@ namespace position_distributor
         alignas(CACHELINE) std::atomic<uint32_t> active_term_id;
         uint32_t _pad0;
 
+        // Producer heartbeat for liveness detection
+        alignas(CACHELINE) std::atomic<uint64_t> producer_heartbeat_ns;
+
         // Subscriber slots
         alignas(CACHELINE) SubscriberSlot subs[MAX_SUBSCRIBERS];
 
@@ -95,7 +98,7 @@ namespace position_distributor
 
         SharedMemoryHeader()
             : magic_number(MAGIC_NUMBER), version(CURRENT_VERSION), term_length(0), term_count(3),
-              producer_pos(0), min_consumer_pos(0), active_term_id(0), _pad0(0), _pad1{0}
+              producer_pos(0), min_consumer_pos(0), active_term_id(0), _pad0(0), producer_heartbeat_ns(0), _pad1{0}
         {
             // Initialize subscriber slots
             for (auto &slot : subs)
@@ -163,6 +166,12 @@ namespace position_distributor
         size_t getActiveSubscriberCount() const;
         std::vector<std::pair<std::string, uint64_t>> getSubscriberInfo() const;
 
+        // Heartbeat functionality
+        void sendHeartbeat();
+        bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
+        bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
+        void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
+
     private:
         std::string topic_;
         std::string shm_path_;
@@ -189,8 +198,6 @@ namespace position_distributor
         // Utilities
         uint64_t nowNanos() const;
         bool isOverrun(uint64_t cursor) const;
-
-        // NO MORE MUTEX - lock-free implementation
     };
 
     // Topic channel management with multi-subscriber support
@@ -225,6 +232,12 @@ namespace position_distributor
         // Monitoring
         size_t getActiveSubscriberCount() const;
         std::vector<std::pair<std::string, uint64_t>> getSubscriberInfo() const;
+
+        // Heartbeat functionality
+        void sendHeartbeat();
+        bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
+        bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
+        void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
 
     private:
         std::string topic_;

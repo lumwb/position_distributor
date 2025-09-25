@@ -66,6 +66,7 @@ namespace position_distributor
     public:
         using PositionUpdateCallback = std::function<void(const PositionUpdate &)>;
         using ErrorCallback = std::function<void(const std::string &, ConnectionError)>;
+        using PublisherDisconnectCallback = std::function<void(const std::string &)>; // topic/exchange
 
         explicit PositionSubscriber(const SubscriberConfig &config);
         ~PositionSubscriber();
@@ -78,6 +79,7 @@ namespace position_distributor
         // Subscription interface
         void setPositionUpdateCallback(PositionUpdateCallback callback);
         void setErrorCallback(ErrorCallback callback);
+        void setPublisherDisconnectCallback(PublisherDisconnectCallback callback);
 
         // Configuration
         const SubscriberConfig &getConfig() const { return config_; }
@@ -102,11 +104,12 @@ namespace position_distributor
 
         // Message processing
         std::thread message_thread_;
-        std::thread activity_thread_;
+        std::thread heartbeat_thread_;
 
         // Callbacks
         PositionUpdateCallback position_callback_;
         ErrorCallback error_callback_;
+        PublisherDisconnectCallback publisher_disconnect_callback_;
         std::mutex callback_mutex_;
 
         // Ordering and statistics
@@ -118,11 +121,10 @@ namespace position_distributor
 
         // Internal methods
         void messageLoop();
-        void activityLoop();
+        void heartbeatLoop();
         void processMessage(const uint8_t *data, uint32_t length);
         bool validateOrdering(const std::string &strategy_id, uint64_t sequence_number);
         void handleError(ConnectionError error);
-        void updateActivity();
 
         // Disable copy/move
         PositionSubscriber(const PositionSubscriber &) = delete;
