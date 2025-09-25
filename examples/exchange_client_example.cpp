@@ -65,11 +65,13 @@ void printUsage(const char *program_name)
     std::cerr << "Options:" << std::endl;
     std::cerr << "  -p <exchange>    Publisher exchange (optional)" << std::endl;
     std::cerr << "  -s <exchange>    Subscribe to exchange (can be used multiple times)" << std::endl;
+    std::cerr << "  --clear-subs     Clear all subscriber slots on publisher startup (dev mode)" << std::endl;
     std::cerr << "  -h               Show this help" << std::endl;
     std::cerr << std::endl;
     std::cerr << "Examples:" << std::endl;
     std::cerr << "  " << program_name << " -p BINANCE -s COINBASE -s KRAKEN  # Publish BINANCE, subscribe to COINBASE & KRAKEN" << std::endl;
     std::cerr << "  " << program_name << " -p BINANCE                        # Publish BINANCE only" << std::endl;
+    std::cerr << "  " << program_name << " -p BINANCE --clear-subs           # Publish BINANCE, clear stale subscribers" << std::endl;
     std::cerr << "  " << program_name << " -s BINANCE -s COINBASE            # Subscribe only (no publishing)" << std::endl;
 }
 
@@ -82,6 +84,7 @@ int main(int argc, char *argv[])
     // Parse command line arguments
     std::string exchange = ""; // Publisher exchange
     std::vector<std::string> subscribe_to;
+    bool clear_subscribers = false;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -111,6 +114,10 @@ int main(int argc, char *argv[])
                 return 1;
             }
             subscribe_to.push_back(argv[++i]);
+        }
+        else if (arg == "--clear-subs")
+        {
+            clear_subscribers = true;
         }
         else
         {
@@ -194,6 +201,20 @@ int main(int argc, char *argv[])
             if (!g_client->subscribeToExchange(exchange_to_sub, position_callback, disconnect_callback))
             {
                 std::cerr << "Failed to subscribe to exchange: " << exchange_to_sub << std::endl;
+            }
+        }
+
+        // Clear subscriber slots if requested (only for publishers)
+        if (is_publisher_mode && clear_subscribers)
+        {
+            std::cout << "Clearing all subscriber slots for publisher topics..." << std::endl;
+            // Access the shared memory manager directly to clear subscribers
+            auto &shm_manager = SharedMemoryManager::instance();
+            auto topic_channel = shm_manager.getOrCreateTopic("position_update." + exchange);
+            if (topic_channel)
+            {
+                topic_channel->clearAllSubscribers();
+                std::cout << "Cleared all subscriber slots for topic: position_update." << exchange << std::endl;
             }
         }
 

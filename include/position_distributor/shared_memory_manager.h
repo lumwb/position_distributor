@@ -172,6 +172,9 @@ namespace position_distributor
         bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
         void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
 
+        // Cleanup (for development/testing)
+        void clearAllSubscribers(); // Clear all subscriber slots
+
     private:
         std::string topic_;
         std::string shm_path_;
@@ -198,6 +201,8 @@ namespace position_distributor
         // Utilities
         uint64_t nowNanos() const;
         bool isOverrun(uint64_t cursor) const;
+        bool isProcessAlive(uint32_t pid) const;
+        void updateMinConsumerPosition();
     };
 
     // Topic channel management with multi-subscriber support
@@ -238,6 +243,9 @@ namespace position_distributor
         bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
         bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
         void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
+
+        // Cleanup (for development/testing)
+        void clearAllSubscribers(); // Clear all subscriber slots
 
     private:
         std::string topic_;

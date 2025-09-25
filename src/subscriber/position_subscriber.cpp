@@ -8,7 +8,7 @@ namespace position_distributor
 {
 
     PositionSubscriber::PositionSubscriber(const SubscriberConfig &config)
-        : config_(config), connected_(false), running_(false), media_driver_(&MediaDriverManager::instance()), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0)
+        : config_(config), connected_(false), running_(false), producer_lost_(false), media_driver_(&MediaDriverManager::instance()), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0)
     {
         if (config_.topic.empty())
         {
@@ -144,22 +144,6 @@ namespace position_distributor
             if (connected_.load() && topic_channel_)
             {
                 pollMessages();
-                
-                // Check producer heartbeat
-                if (!topic_channel_->isProducerAlive())
-                {
-                    LOG_WARN("Producer heartbeat lost for topic: " + config_.topic);
-                    handleError(ConnectionError::PRODUCER_STALE);
-                    
-                    // Notify publisher disconnect callback
-                    {
-                        std::lock_guard<std::mutex> lock(callback_mutex_);
-                        if (publisher_disconnect_callback_)
-                        {
-                            publisher_disconnect_callback_(config_.topic);
-                        }
-                    }
-                }
             }
 
             std::this_thread::sleep_for(config_.poll_interval);
@@ -182,16 +166,27 @@ namespace position_distributor
             // Update subscriber heartbeat in shared memory
             if (connected_.load() && topic_channel_)
             {
-                // The subscriber heartbeat is updated automatically when polling messages
-                // But we need to ensure it's updated even when no messages are coming
-                // We can do this by sending a dummy poll or accessing the ring buffer directly
-                
-                // For now, let's use a debug log to show the heartbeat is running
-                // In production, we might want to access the shared memory directly
-                LOG_DEBUG("Subscriber heartbeat for topic: " + config_.topic);
-                
-                // Force a poll to ensure subscriber heartbeat is updated
-                pollMessages();
+                // Check producer heartbeat
+                if (!topic_channel_->isProducerAlive())
+                {
+                    LOG_WARN("Producer heartbeat lost for topic: " + config_.topic);
+                    handleError(ConnectionError::PRODUCER_STALE);
+
+                    // Notify publisher disconnect callback
+                    {
+                        std::lock_guard<std::mutex> lock(callback_mutex_);
+                        if (publisher_disconnect_callback_)
+                        {
+                            publisher_disconnect_callback_(config_.topic);
+                        }
+                    }
+
+                    // Signal that producer is lost - let main thread handle disconnection
+                    LOG_INFO("Producer lost, signaling for graceful disconnection: " + config_.topic);
+                    connected_.store(false);
+                    running_.store(false);
+                    break; // Exit heartbeat loop
+                }
             }
         }
 
@@ -300,6 +295,5 @@ namespace position_distributor
             error_callback_(config_.topic, error);
         }
     }
-
 
 } // namespace position_distributor

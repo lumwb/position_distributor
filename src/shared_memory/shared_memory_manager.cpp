@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 #include <cstring>
 #include <stdexcept>
 #include <filesystem>
@@ -468,9 +469,31 @@ namespace position_distributor
                 uint64_t last_heartbeat = slot.last_heartbeat_ns.load(std::memory_order_acquire);
                 if (last_heartbeat > 0 && (now - last_heartbeat) > timeout_ns)
                 {
-                    LOG_WARN("Subscriber heartbeat lost - slot: " + std::to_string(i) +
-                             " name: " + std::string(slot.name) + " PID: " + std::to_string(slot.pid) +
-                             " for topic: " + topic_);
+                    // Check if process is still alive before cleaning up
+                    if (!isProcessAlive(slot.pid))
+                    {
+                        LOG_WARN("Dead subscriber detected - cleaning up slot: " + std::to_string(i) +
+                                 " name: " + std::string(slot.name) + " PID: " + std::to_string(slot.pid) +
+                                 " for topic: " + topic_);
+
+                        // Clean up the dead subscriber slot
+                        slot.active.store(0, std::memory_order_release);
+                        slot.last_heartbeat_ns.store(0, std::memory_order_release);
+                        slot.cursor.store(0, std::memory_order_release);
+                        slot.pid = 0;
+                        slot.generation++; // Bump generation to invalidate any old handles
+                        std::memset(slot.name, 0, sizeof(slot.name));
+
+                        // Update min consumer position since we removed a subscriber
+                        const_cast<SharedMemoryRingBuffer *>(this)->updateMinConsumerPosition();
+                    }
+                    else
+                    {
+                        // Process alive but heartbeat lost - just log warning
+                        LOG_WARN("Subscriber heartbeat lost (process alive) - slot: " + std::to_string(i) +
+                                 " name: " + std::string(slot.name) + " PID: " + std::to_string(slot.pid) +
+                                 " for topic: " + topic_);
+                    }
                 }
             }
         }
@@ -480,6 +503,52 @@ namespace position_distributor
     {
         const uint64_t prod = header_->producer_pos.load(std::memory_order_acquire);
         return (prod - cursor) > total_capacity_;
+    }
+
+    bool SharedMemoryRingBuffer::isProcessAlive(uint32_t pid) const
+    {
+        if (pid == 0)
+            return false;
+
+        // Use kill(pid, 0) to check if process exists without sending signal
+        return ::kill(static_cast<pid_t>(pid), 0) == 0;
+    }
+
+    void SharedMemoryRingBuffer::updateMinConsumerPosition()
+    {
+        if (header_)
+        {
+            header_->min_consumer_pos.store(minOfAllSubscribers(), std::memory_order_release);
+        }
+    }
+
+    void SharedMemoryRingBuffer::clearAllSubscribers()
+    {
+        if (!header_)
+            return;
+
+        LOG_INFO("Clearing all subscriber slots for topic: " + topic_);
+
+        for (uint32_t i = 0; i < MAX_SUBSCRIBERS; ++i)
+        {
+            auto &slot = header_->subs[i];
+            if (slot.active.load(std::memory_order_acquire) == 1)
+            {
+                LOG_INFO("Clearing subscriber slot: " + std::to_string(i) +
+                         " name: " + std::string(slot.name) + " PID: " + std::to_string(slot.pid));
+            }
+
+            // Clear the slot completely
+            slot.active.store(0, std::memory_order_release);
+            slot.last_heartbeat_ns.store(0, std::memory_order_release);
+            slot.cursor.store(0, std::memory_order_release);
+            slot.pid = 0;
+            slot.generation++; // Bump generation to invalidate any old handles
+            std::memset(slot.name, 0, sizeof(slot.name));
+        }
+
+        // Reset min consumer position since all subscribers are gone
+        header_->min_consumer_pos.store(header_->producer_pos.load(std::memory_order_acquire), std::memory_order_release);
     }
 
     uint64_t SharedMemoryRingBuffer::getProducerPosition() const
@@ -732,6 +801,14 @@ namespace position_distributor
         if (ring_buffer_)
         {
             ring_buffer_->checkSubscriberHeartbeats(timeout_ns);
+        }
+    }
+
+    void TopicChannel::clearAllSubscribers()
+    {
+        if (ring_buffer_)
+        {
+            ring_buffer_->clearAllSubscribers();
         }
     }
 
