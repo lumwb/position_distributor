@@ -270,8 +270,16 @@ int main(int argc, char *argv[])
                     positions.emplace_back(symbol, position);
                 }
 
-                // Publish positions
+                // Print all positions being published
                 std::string strategy_id = exchange + "_STRATEGY_1";
+                std::string positions_log = "PUBLISHING " + std::to_string(positions.size()) + " positions for " + strategy_id + ":";
+                for (const auto &pos : positions)
+                {
+                    positions_log += "\n  -> " + pos.toString();
+                }
+                LOG_INFO(positions_log);
+
+                // Publish positions
                 if (g_client->publishPositions(strategy_id, positions))
                 {
                     LOG_INFO("PUBLISHED: " + std::to_string(positions.size()) + " positions for " + strategy_id);
