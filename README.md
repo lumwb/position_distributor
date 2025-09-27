@@ -251,15 +251,9 @@ Options:
 - **Multiple Consumers**: Can be in different processes or multiple subscription of same topic on same box
 - **Topic Isolation**: Each exchange has its dedicated topic namespace (e.g. position_update.BINANCE)
 
-### Performance Characteristics
-- **Low Latency Priority**: Optimized for sub-microsecond messaging
-- **High Frequency**: Designed for thousands of updates per second
-- **Memory Bounded**: Fixed-size ring buffers (configurable)
-- **CPU Intensive**: May use busy-spinning for lowest latency
-
 ## Future Improvements
 
-### 1. Professional Logging Framework
+### 1. Use better Logging Framework
 **Current State**: Basic console logging with custom Logger class
 ```cpp
 // Current approach
@@ -296,7 +290,6 @@ encoder.wrap(buffer, 0, bufferLength)
 ```
 
 **Benefits**:
-- Zero-allocation encoding/decoding
 - Schema evolution support
 - Cross-language compatibility
 - Standardized wire format
