@@ -3,12 +3,31 @@
 #include <stdexcept>
 #include <functional>
 #include <chrono>
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
+#include <immintrin.h> // only on x86
+#endif
+#if defined(__aarch64__) || defined(__arm__)
+#include <arm_acle.h> // optional, for __yield() intrinsic
+#endif
+
+inline void cpu_relax()
+{
+    {
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
+        _mm_pause();
+#elif defined(__aarch64__) || defined(__arm__)
+        __yield();
+#else
+        std::this_thread::yield();
+#endif
+    }
+}
 
 namespace position_distributor
 {
 
     PositionSubscriber::PositionSubscriber(const SubscriberConfig &config)
-        : config_(config), connected_(false), running_(false), cleanup_started_(false), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0)
+        : config_(config), connected_(false), running_(false), cleanup_started_(false), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0), producer_heartbeat_lost_(false)
     {
         if (config_.topic.empty())
         {
@@ -60,6 +79,7 @@ namespace position_distributor
 
         connected_.store(true);
         running_.store(true);
+        producer_heartbeat_lost_.store(false); // Reset heartbeat state on connect
 
         // Start background threads
         message_thread_ = std::thread(&PositionSubscriber::messageLoop, this);
@@ -145,8 +165,10 @@ namespace position_distributor
 
     void PositionSubscriber::messageLoop()
     {
-        LOG_INFO("Message processing thread started for topic: " + config_.topic);
+        LOG_INFO("Message processing thread started for topic: " + config_.topic +
+                 (config_.use_busy_spin ? " (low latency mode)" : " (normal mode)"));
 
+        // Normal mode: use sleep to yield to OS scheduler
         while (running_.load())
         {
             if (connected_.load() && topic_channel_)
@@ -154,6 +176,14 @@ namespace position_distributor
                 pollMessages();
             }
 
+            if (config_.use_busy_spin)
+            {
+                cpu_relax();
+            }
+            else
+            {
+                std::this_thread::sleep_for(config_.poll_interval);
+            }
             std::this_thread::sleep_for(config_.poll_interval);
         }
 
@@ -175,8 +205,14 @@ namespace position_distributor
             if (connected_.load() && topic_channel_)
             {
                 // Check producer heartbeat
-                if (!topic_channel_->isProducerAlive())
+                bool producer_alive = topic_channel_->isProducerAlive();
+                bool was_heartbeat_lost = producer_heartbeat_lost_.load();
+
+                if (!producer_alive && !was_heartbeat_lost)
                 {
+                    // Producer heartbeat just lost - transition from alive to lost
+                    producer_heartbeat_lost_.store(true);
+
                     LOG_WARN("Producer heartbeat lost for topic: " + config_.topic);
                     handleError(ConnectionError::PRODUCER_STALE);
 
@@ -191,14 +227,17 @@ namespace position_distributor
                     }
                     catch (const std::system_error &e)
                     {
-                        LOG_DEBUG("Unable to acquire callback mutex during cleanup: " + std::string(e.what()));
+                        LOG_DEBUG("Unable to acquire callback mutex during heartbeat lost: " + std::string(e.what()));
                     }
-
-                    // Stop running_thread and let it gracefully shutdown
-                    LOG_INFO("Producer lost, stop running_thread for " + config_.topic);
-                    running_.store(false);
-                    break; // Exit heartbeat loop
                 }
+                else if (producer_alive && was_heartbeat_lost)
+                {
+                    // Producer heartbeat recovered - transition from lost to alive
+                    producer_heartbeat_lost_.store(false);
+                    LOG_INFO("Producer heartbeat recovered for topic: " + config_.topic);
+                }
+                // If (!producer_alive && was_heartbeat_lost) - heartbeat still lost, do nothing
+                // If (producer_alive && !was_heartbeat_lost) - heartbeat still good, do nothing
             }
         }
 

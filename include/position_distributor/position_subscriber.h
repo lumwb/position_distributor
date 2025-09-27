@@ -53,9 +53,10 @@ namespace position_distributor
         std::chrono::milliseconds poll_interval;     // How often to poll for messages
         std::chrono::milliseconds activity_interval; // How often to report activity
         bool enable_ordering_check;                  // Check sequence numbers for ordering
+        bool use_busy_spin;                          // Use busy spinning instead of sleep for low latency
 
         SubscriberConfig(const std::string &t = "")
-            : topic(t), poll_interval(1), activity_interval(1000), enable_ordering_check(true)
+            : topic(t), poll_interval(1), activity_interval(1000), enable_ordering_check(true), use_busy_spin(false)
         {
         }
     };
@@ -118,6 +119,9 @@ namespace position_distributor
         std::atomic<uint64_t> ordering_errors_;
         std::unordered_map<std::string, uint64_t> strategy_sequence_map_;
         std::mutex sequence_mutex_;
+
+        // Producer heartbeat state tracking
+        std::atomic<bool> producer_heartbeat_lost_;
 
         // Internal methods
         void messageLoop();
