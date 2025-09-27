@@ -160,14 +160,14 @@ namespace position_distributor
         std::memset(terms_, 0, term_count_ * sizeof(TermBuffer *));
     }
 
-    bool SharedMemoryRingBuffer::write(const uint8_t *data, uint32_t length, uint32_t session_id, uint32_t stream_id)
+    bool SharedMemoryRingBuffer::write(const uint8_t *data, uint32_t length, uint32_t session_id)
     {
         if (!header_ || !data || length == 0)
         {
             return false;
         }
 
-        // 1. Add CACHELINE - 1 (to make sure we round up), 2. then filter out last CACHELINE - 1 bits -> 3. Effectively rounding up to multiple of CACHELINE 
+        // 1. Add CACHELINE - 1 (to make sure we round up), 2. then filter out last CACHELINE - 1 bits -> 3. Effectively rounding up to multiple of CACHELINE
         const uint32_t aligned_size = (sizeof(MessageFrame) + length + (CACHELINE - 1)) & ~(CACHELINE - 1);
 
         // Check backpressure before attempting reservation
@@ -193,7 +193,6 @@ namespace position_distributor
             pad->frame_type = MessageFrame::FRAME_TYPE_PADDING;
             pad->reserved = 0;
             pad->session_id = session_id;
-            pad->stream_id = stream_id;
             pad->term_id = term->term_id;
             pad->term_offset = term_offset;
             pad->frame_length.store(padding, std::memory_order_release);
@@ -211,7 +210,6 @@ namespace position_distributor
         frame->frame_type = MessageFrame::FRAME_TYPE_DATA;
         frame->reserved = 0;
         frame->session_id = session_id;
-        frame->stream_id = stream_id;
         frame->term_id = term->term_id;
         frame->term_offset = term_offset;
 
@@ -646,7 +644,7 @@ namespace position_distributor
 
     bool TopicChannel::publish(const uint8_t *data, uint32_t length, uint32_t session_id)
     {
-        return ring_buffer_->write(data, length, session_id, stream_id_);
+        return ring_buffer_->write(data, length, session_id);
     }
 
     // Multi-subscriber interface

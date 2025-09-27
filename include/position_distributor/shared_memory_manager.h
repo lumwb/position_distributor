@@ -54,7 +54,6 @@ namespace position_distributor
         uint16_t frame_type;
         uint16_t reserved;
         uint32_t session_id;
-        uint32_t stream_id;
         uint32_t term_id;
         uint32_t term_offset;
         // payload follows...
@@ -63,7 +62,7 @@ namespace position_distributor
         static constexpr uint16_t FRAME_TYPE_PADDING = 2;
 
         MessageFrame() : frame_length(0), frame_type(0), reserved(0),
-                         session_id(0), stream_id(0), term_id(0), term_offset(0) {}
+                         session_id(0), term_id(0), term_offset(0) {}
 
         uint8_t *getPayload() { return reinterpret_cast<uint8_t *>(this + 1); }
         const uint8_t *getPayload() const { return reinterpret_cast<const uint8_t *>(this + 1); }
@@ -149,7 +148,7 @@ namespace position_distributor
         ~SharedMemoryRingBuffer();
 
         // Producer interface (lock-free, multi-producer safe)
-        bool write(const uint8_t *data, uint32_t length, uint32_t session_id, uint32_t stream_id);
+        bool write(const uint8_t *data, uint32_t length, uint32_t session_id);
 
         // Subscriber management
         std::optional<SubscriberHandle> registerSubscriber(const char *name = nullptr);
@@ -250,7 +249,6 @@ namespace position_distributor
 
     private:
         std::string topic_;
-        uint32_t stream_id_; // Hash of topic name
         std::unique_ptr<SharedMemoryRingBuffer> ring_buffer_;
 
         // Multi-subscriber support
