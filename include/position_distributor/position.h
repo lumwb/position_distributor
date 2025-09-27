@@ -25,4 +25,34 @@ namespace position_distributor
         std::string toString() const;
     };
 
+    struct PositionUpdate
+    {
+        std::string strategy_id;
+        uint64_t timestamp;
+        uint64_t sequence_number;
+        std::vector<SymbolPosition> positions;
+
+        PositionUpdate() = default;
+        PositionUpdate(const std::string &strategy, uint64_t ts, uint64_t seq_num,
+                       const std::vector<SymbolPosition> &pos)
+            : strategy_id(strategy), timestamp(ts), sequence_number(seq_num), positions(pos)
+        {
+        }
+
+        std::string toString() const
+        {
+            std::string result = "PositionUpdate{strategy=" + strategy_id +
+                                 ", seq=" + std::to_string(sequence_number) +
+                                 ", positions=[";
+            for (size_t i = 0; i < positions.size(); ++i)
+            {
+                if (i > 0)
+                    result += ", ";
+                result += positions[i].toString();
+            }
+            result += "]}";
+            return result;
+        }
+    };
+
 } // namespace position_distributor
