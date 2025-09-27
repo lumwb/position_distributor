@@ -33,7 +33,7 @@ namespace position_distributor
         std::atomic<uint64_t> last_heartbeat_ns; // Liveness tracking
         std::atomic<uint32_t> active;            // 0=free, 1=claimed
         uint32_t pid;                            // Process ID for debugging
-        uint32_t generation;                     // Bump on reuse to avoid ABA
+        uint32_t generation;                     // Bump on as SubscribeSlot can be resued by different Subscriber
         uint32_t _pad;
         char name[32]; // Optional: process/topic label
     };
@@ -173,8 +173,7 @@ namespace position_distributor
 
         // Heartbeat functionality
         void sendProdcuerHeartbeat();
-        bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
-        bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
+        bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const;           // 5 seconds default
         void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
 
         // Cleanup (for development/testing)
@@ -224,7 +223,7 @@ namespace position_distributor
         bool publish(const uint8_t *data, uint32_t length, uint32_t session_id);
 
         // Multi-subscriber interface
-        using MessageHandler = std::function<void(const uint8_t *, uint32_t, uint32_t)>; // data, length, session_id
+        using MessageHandler = std::function<void(const uint8_t *data, uint32_t length, uint32_t session_id)>;
         std::optional<SubscriberHandle> subscribe(MessageHandler handler, const char *subscriber_name = nullptr);
         void unsubscribe(const SubscriberHandle &handle);
 
@@ -239,9 +238,8 @@ namespace position_distributor
         std::vector<std::pair<std::string, uint64_t>> getSubscriberInfo() const;
 
         // Heartbeat functionality
-        void sendProdcuerHeartbeat();                                    // Reset heartbeat timestamp (for new producer sessions)
-        bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
-        bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
+        void sendProdcuerHeartbeat();                                              // Reset heartbeat timestamp (for new producer sessions)
+        bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const;           // 5 seconds default
         void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
 
         // Cleanup (for development/testing)

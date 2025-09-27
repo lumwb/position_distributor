@@ -333,7 +333,6 @@ namespace position_distributor
 
         if (frame->frame_type == MessageFrame::FRAME_TYPE_DATA)
         {
-            // Deliver payload with session_id for producer restart detection
             handler(frame->getPayload(), frame->getPayloadSize(), frame->session_id);
         }
 
@@ -367,7 +366,7 @@ namespace position_distributor
             return true;
         }
 
-        min_cons = minOfAllSubscribers(); // O(MAX_SUBSCRIBERS), cheap when <= 64
+        min_cons = minOfAllSubscribers(); // O(MAX_SUBSCRIBERS), not too expesnvie when <= 64
         header_->min_consumer_pos.store(min_cons, std::memory_order_release);
         return (prod + needed_bytes) - min_cons <= total_capacity_;
     }
@@ -419,23 +418,6 @@ namespace position_distributor
         if (last_heartbeat == 0)
             return true; // Producer hasn't started heartbeating yet
         return (now - last_heartbeat) <= timeout_ns;
-    }
-
-    bool SharedMemoryRingBuffer::isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns) const
-    {
-        if (!header_ || !handle.isValid())
-            return false;
-
-        auto &slot = header_->subs[handle.index];
-        if (slot.active.load(std::memory_order_acquire) == 0)
-            return false; // Not active
-        if (slot.generation != handle.generation)
-            return false; // Stale handle
-
-        uint64_t last_heartbeat = slot.last_heartbeat_ns.load(std::memory_order_acquire);
-        if (last_heartbeat == 0)
-            return true; // Subscriber hasn't started heartbeating yet
-        return (nowNanos() - last_heartbeat) <= timeout_ns;
     }
 
     void SharedMemoryRingBuffer::checkSubscriberHeartbeats(uint64_t timeout_ns) const
@@ -739,11 +721,6 @@ namespace position_distributor
     bool TopicChannel::isProducerAlive(uint64_t timeout_ns) const
     {
         return ring_buffer_ ? ring_buffer_->isProducerAlive(timeout_ns) : false;
-    }
-
-    bool TopicChannel::isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns) const
-    {
-        return ring_buffer_ ? ring_buffer_->isSubscriberAlive(handle, timeout_ns) : false;
     }
 
     void TopicChannel::checkSubscriberHeartbeats(uint64_t timeout_ns) const
