@@ -1,7 +1,7 @@
 #pragma once
 
-#include "position_distributor/position_media_driver.h"
-#include "position_distributor/sbe_encoding.h"
+#include "position_distributor/shared_memory_manager.h"
+#include "position_distributor/position_encoding.h"
 #include "position_distributor/position.h"
 #include <string>
 #include <vector>
@@ -59,15 +59,14 @@ namespace position_distributor
         uint64_t getCurrentSequenceNumber() const { return sequence_number_.load(); }
 
         // Manual heartbeat (if auto_heartbeat is disabled)
-        bool sendHeartbeat();
+        bool sendProdcuerHeartbeat();
 
     private:
         PublisherConfig config_;
         std::atomic<bool> connected_;
         std::atomic<bool> running_;
+        std::atomic<bool> cleanup_started_;
 
-        // Media driver integration
-        PositionMediaDriver *media_driver_;
         uint32_t session_id_;
 
         // Sequence tracking for ordering

@@ -138,9 +138,9 @@ bool poll(const SubscriberHandle& handle, std::function<void(const uint8_t*, uin
 auto channel = SharedMemoryManager::instance().getOrCreateTopic("my_topic");
 
 // Register multiple subscribers
-auto handle1 = channel->subscribeMulti(handler1, "FastConsumer");
-auto handle2 = channel->subscribeMulti(handler2, "SlowConsumer"); 
-auto handle3 = channel->subscribeMulti(handler3, "MonitorConsumer");
+auto handle1 = channel->subscribe(handler1, "FastConsumer");
+auto handle2 = channel->subscribe(handler2, "SlowConsumer"); 
+auto handle3 = channel->subscribe(handler3, "MonitorConsumer");
 
 // Each subscriber polls independently (lock-free!)
 while (running) {
@@ -153,18 +153,6 @@ while (running) {
 channel->unsubscribe(handle1);
 channel->unsubscribe(handle2);
 channel->unsubscribe(handle3);
-```
-
-### Legacy API (Backward Compatible)
-```cpp
-auto channel = SharedMemoryManager::instance().getOrCreateTopic("my_topic");
-
-// Uses first available subscriber slot internally
-channel->subscribe(handler);
-while (running) {
-    channel->readMessages();
-}
-channel->unsubscribe();
 ```
 
 ## Testing Results

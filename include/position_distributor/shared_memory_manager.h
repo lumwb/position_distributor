@@ -16,6 +16,16 @@ namespace position_distributor
     static constexpr uint32_t MAX_SUBSCRIBERS = 64;
     static constexpr uint32_t CACHELINE = 64;
 
+    // Connection error types
+    enum class ConnectionError
+    {
+        HEARTBEAT_LOST,
+        SLOW_CONSUMER,
+        CORRUPTED_MEMORY,
+        PRODUCER_STALE,
+        UNKNOWN_ERROR
+    };
+
     // Subscriber slot for multi-consumer support
     struct alignas(CACHELINE) SubscriberSlot
     {
@@ -149,9 +159,6 @@ namespace position_distributor
         // Consumer interface (per-subscriber, lock-free)
         bool poll(const SubscriberHandle &handle, std::function<void(const uint8_t *, uint32_t)> handler);
 
-        // Legacy consumer interface (single consumer for backward compatibility)
-        bool read(std::function<void(const uint8_t *, uint32_t)> handler);
-
         // Management
         bool initialize();
         void cleanup();
@@ -167,7 +174,7 @@ namespace position_distributor
         std::vector<std::pair<std::string, uint64_t>> getSubscriberInfo() const;
 
         // Heartbeat functionality
-        void sendHeartbeat();
+        void sendProdcuerHeartbeat();
         bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
         bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
         void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
@@ -220,16 +227,11 @@ namespace position_distributor
 
         // Multi-subscriber interface
         using MessageHandler = std::function<void(const uint8_t *, uint32_t)>;
-        std::optional<SubscriberHandle> subscribeMulti(MessageHandler handler, const char *subscriber_name = nullptr);
+        std::optional<SubscriberHandle> subscribe(MessageHandler handler, const char *subscriber_name = nullptr);
         void unsubscribe(const SubscriberHandle &handle);
 
         // Polling interface for registered subscribers
         bool readMessages(const SubscriberHandle &handle);
-
-        // Legacy single-subscriber interface (for backward compatibility)
-        bool subscribe(MessageHandler handler);
-        void unsubscribe();
-        bool readMessages();
 
         const std::string &getTopic() const { return topic_; }
         bool isInitialized() const { return ring_buffer_ && ring_buffer_->isInitialized(); }
@@ -239,7 +241,7 @@ namespace position_distributor
         std::vector<std::pair<std::string, uint64_t>> getSubscriberInfo() const;
 
         // Heartbeat functionality
-        void sendHeartbeat();
+        void sendProdcuerHeartbeat();
         bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
         bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
         void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
@@ -251,11 +253,6 @@ namespace position_distributor
         std::string topic_;
         uint32_t stream_id_; // Hash of topic name
         std::unique_ptr<SharedMemoryRingBuffer> ring_buffer_;
-
-        // Legacy single subscriber support
-        bool legacy_subscribed_;
-        MessageHandler legacy_message_handler_;
-        std::optional<SubscriberHandle> legacy_handle_;
 
         // Multi-subscriber support
         std::unordered_map<uint32_t, MessageHandler> subscriber_handlers_; // index -> handler
@@ -287,7 +284,7 @@ namespace position_distributor
         std::unordered_map<std::string, std::shared_ptr<TopicChannel>> topics_;
         mutable std::mutex topics_mutex_;
 
-        // Disable copy/move
+        // Singleton
         SharedMemoryManager(const SharedMemoryManager &) = delete;
         SharedMemoryManager &operator=(const SharedMemoryManager &) = delete;
     };

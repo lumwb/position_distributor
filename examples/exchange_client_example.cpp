@@ -12,7 +12,8 @@ std::unique_ptr<PositionClient> g_client;
 
 void signalHandler(int signal)
 {
-    std::cout << "\nReceived signal " << signal << ", shutting down client..." << std::endl;
+    // Use fprintf for signal-safe logging (avoid std::cout race conditions)
+    fprintf(stderr, "\nReceived signal %d, shutting down client...\n", signal);
 
     if (g_client)
     {
@@ -24,39 +25,40 @@ void signalHandler(int signal)
 
 void onPositionUpdate(const PositionUpdate &update)
 {
-    std::cout << "RECEIVED: " << update.toString() << std::endl;
+    LOG_INFO("RECEIVED: " + update.toString());
 }
 
 void onError(const std::string &topic, ConnectionError error)
 {
-    std::cout << "ERROR - Topic: " << topic
-              << ", Error: " << static_cast<int>(error) << std::endl;
+    LOG_ERROR("ERROR - Topic: " + topic + ", Error: " + std::to_string(static_cast<int>(error)));
 }
 
 void printStatistics(const PositionClient &client)
 {
-    std::cout << "\n=== Client Statistics ===" << std::endl;
-    std::cout << "Exchange: " << client.getExchange() << std::endl;
-    std::cout << "Published: " << client.getPublishedCount() << std::endl;
-    std::cout << "Publish Failures: " << client.getPublishFailedCount() << std::endl;
-    std::cout << "Received: " << client.getReceivedCount() << std::endl;
-    std::cout << "Ordering Errors: " << client.getOrderingErrorCount() << std::endl;
-    std::cout << "Active Subscriptions: " << client.getActiveSubscriptionCount() << std::endl;
-    std::cout << "Current Sequence: " << client.getCurrentSequenceNumber() << std::endl;
+    std::string stats = "\n=== Client Statistics ===\n";
+    stats += "Exchange: " + client.getExchange() + "\n";
+    stats += "Published: " + std::to_string(client.getPublishedCount()) + "\n";
+    stats += "Publish Failures: " + std::to_string(client.getPublishFailedCount()) + "\n";
+    stats += "Received: " + std::to_string(client.getReceivedCount()) + "\n";
+    stats += "Ordering Errors: " + std::to_string(client.getOrderingErrorCount()) + "\n";
+    stats += "Active Subscriptions: " + std::to_string(client.getActiveSubscriptionCount()) + "\n";
+    stats += "Current Sequence: " + std::to_string(client.getCurrentSequenceNumber()) + "\n";
 
     auto subscriptions = client.getSubscribedExchanges();
     if (!subscriptions.empty())
     {
-        std::cout << "Subscribed to: ";
+        stats += "Subscribed to: ";
         for (size_t i = 0; i < subscriptions.size(); ++i)
         {
             if (i > 0)
-                std::cout << ", ";
-            std::cout << subscriptions[i];
+                stats += ", ";
+            stats += subscriptions[i];
         }
-        std::cout << std::endl;
+        stats += "\n";
     }
-    std::cout << "=========================" << std::endl;
+    stats += "=========================";
+
+    LOG_INFO(stats);
 }
 
 void printUsage(const char *program_name)
@@ -190,12 +192,12 @@ int main(int argc, char *argv[])
             // Subscribe with position update and disconnect callbacks
             auto position_callback = [exchange_to_sub](const PositionUpdate &update)
             {
-                std::cout << "[" << exchange_to_sub << "] RECEIVED: " << update.toString() << std::endl;
+                LOG_INFO("[" + exchange_to_sub + "] RECEIVED: " + update.toString());
             };
 
             auto disconnect_callback = [exchange_to_sub](const std::string &exchange)
             {
-                std::cout << "[" << exchange << "] PUBLISHER DISCONNECTED!" << std::endl;
+                LOG_WARN("[" + exchange + "] PUBLISHER DISCONNECTED!");
             };
 
             if (!g_client->subscribeToExchange(exchange_to_sub, position_callback, disconnect_callback))
@@ -220,13 +222,13 @@ int main(int argc, char *argv[])
 
         if (is_publisher_mode)
         {
-            std::cout << "Connected! Publishing random positions every 3 seconds..." << std::endl;
+            LOG_INFO("Connected! Publishing random positions every 3 seconds...");
         }
         else
         {
-            std::cout << "Connected! Subscriber-only mode - waiting for position updates..." << std::endl;
+            LOG_INFO("Connected! Subscriber-only mode - waiting for position updates...");
         }
-        std::cout << "Press Ctrl+C to stop." << std::endl;
+        LOG_INFO("Press Ctrl+C to stop.");
 
         // Random number generator for position simulation
         std::random_device rd;
@@ -266,11 +268,11 @@ int main(int argc, char *argv[])
                 std::string strategy_id = exchange + "_STRATEGY_1";
                 if (g_client->publishPositions(strategy_id, positions))
                 {
-                    std::cout << "PUBLISHED: " << positions.size() << " positions for " << strategy_id << std::endl;
+                    LOG_INFO("PUBLISHED: " + std::to_string(positions.size()) + " positions for " + strategy_id);
                 }
                 else
                 {
-                    std::cout << "FAILED to publish positions for " << strategy_id << std::endl;
+                    LOG_ERROR("FAILED to publish positions for " + strategy_id);
                 }
 
                 last_publish_time = now;
@@ -295,6 +297,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    std::cout << "Client stopped." << std::endl;
+    LOG_INFO("Client stopped.");
     return 0;
 }

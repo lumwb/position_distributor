@@ -1,4 +1,4 @@
-#include "position_distributor/sbe_encoding.h"
+#include "position_distributor/position_encoding.h"
 #include <stdexcept>
 #include <algorithm>
 

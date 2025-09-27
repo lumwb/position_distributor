@@ -78,7 +78,7 @@ namespace position_distributor
         size_t getActiveSubscriptionCount() const;
 
         // Manual operations
-        bool sendHeartbeat();
+        bool sendProdcuerHeartbeat();
         bool pollMessages();
 
     private:

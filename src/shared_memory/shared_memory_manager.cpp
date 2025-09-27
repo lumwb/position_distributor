@@ -1,6 +1,6 @@
 #include "position_distributor/shared_memory_manager.h"
 #include "position_distributor/logger.h"
-#include "position_distributor/sbe_encoding.h"
+#include "position_distributor/position_encoding.h"
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -222,32 +222,6 @@ namespace position_distributor
         return true;
     }
 
-    // Legacy read method (single consumer, NOT lock-free)
-    bool SharedMemoryRingBuffer::read(std::function<void(const uint8_t *, uint32_t)> handler)
-    {
-        if (!header_ || !handler)
-        {
-            return false;
-        }
-
-        // This is a legacy method that doesn't use the new lock-free multi-consumer design
-        // It's kept for backward compatibility but is NOT recommended for new code
-        LOG_WARN("Using legacy single-consumer read() method. Consider using registerSubscriber() + poll()");
-
-        // For backward compatibility, we'll simulate using the first subscriber slot
-        static std::optional<SubscriberHandle> legacy_handle;
-        if (!legacy_handle.has_value())
-        {
-            legacy_handle = registerSubscriber("legacy_reader");
-            if (!legacy_handle.has_value())
-            {
-                return false;
-            }
-        }
-
-        return poll(legacy_handle.value(), handler);
-    }
-
     std::optional<SubscriberHandle> SharedMemoryRingBuffer::registerSubscriber(const char *name)
     {
         if (!header_)
@@ -421,7 +395,7 @@ namespace position_distributor
             .count();
     }
 
-    void SharedMemoryRingBuffer::sendHeartbeat()
+    void SharedMemoryRingBuffer::sendProdcuerHeartbeat()
     {
         if (!header_)
             return;
@@ -620,7 +594,7 @@ namespace position_distributor
 
     // TopicChannel implementation with multi-subscriber support
     TopicChannel::TopicChannel(const std::string &topic)
-        : topic_(topic), stream_id_(calculateStreamId(topic)), legacy_subscribed_(false)
+        : topic_(topic), stream_id_(calculateStreamId(topic))
     {
         ring_buffer_ = std::make_unique<SharedMemoryRingBuffer>(topic);
     }
@@ -637,7 +611,8 @@ namespace position_distributor
 
     void TopicChannel::cleanup()
     {
-        // Unregister all subscribers
+        // Unregister all subscribers (safely handle mutex failures during cleanup)
+        try
         {
             std::lock_guard<std::mutex> lock(handlers_mutex_);
             for (const auto &[index, handler] : subscriber_handlers_)
@@ -647,9 +622,10 @@ namespace position_distributor
             }
             subscriber_handlers_.clear();
         }
-
-        // Clean up legacy subscriber
-        unsubscribe();
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire handlers mutex during cleanup: " + std::string(e.what()));
+        }
 
         if (ring_buffer_)
         {
@@ -663,7 +639,7 @@ namespace position_distributor
     }
 
     // Multi-subscriber interface
-    std::optional<SubscriberHandle> TopicChannel::subscribeMulti(MessageHandler handler, const char *subscriber_name)
+    std::optional<SubscriberHandle> TopicChannel::subscribe(MessageHandler handler, const char *subscriber_name)
     {
         if (!ring_buffer_)
         {
@@ -672,10 +648,16 @@ namespace position_distributor
 
         auto handle = ring_buffer_->registerSubscriber(subscriber_name);
         if (handle.has_value())
-        {
-            std::lock_guard<std::mutex> lock(handlers_mutex_);
-            subscriber_handlers_[handle->index] = handler;
-        }
+            try
+            {
+                std::lock_guard<std::mutex> lock(handlers_mutex_);
+                subscriber_handlers_[handle->index] = handler;
+            }
+            catch (const std::system_error &e)
+            {
+                LOG_DEBUG("Unable to acquire handlers mutex: " + std::string(e.what()));
+                return std::nullopt;
+            }
 
         return handle;
     }
@@ -687,9 +669,14 @@ namespace position_distributor
             return;
         }
 
+        try
         {
             std::lock_guard<std::mutex> lock(handlers_mutex_);
             subscriber_handlers_.erase(handle.index);
+        }
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire handlers mutex for unsubscribe: " + std::string(e.what()));
         }
 
         ring_buffer_->unregisterSubscriber(handle);
@@ -703,6 +690,7 @@ namespace position_distributor
         }
 
         MessageHandler handler;
+        try
         {
             std::lock_guard<std::mutex> lock(handlers_mutex_);
             auto it = subscriber_handlers_.find(handle.index);
@@ -712,54 +700,13 @@ namespace position_distributor
             }
             handler = it->second;
         }
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire handlers mutex for readMessages: " + std::string(e.what()));
+            return false;
+        }
 
         return ring_buffer_->poll(handle, handler);
-    }
-
-    // Legacy single-subscriber interface (backward compatibility)
-    bool TopicChannel::subscribe(MessageHandler handler)
-    {
-        if (legacy_subscribed_)
-        {
-            return false;
-        }
-
-        if (!ring_buffer_)
-        {
-            return false;
-        }
-
-        legacy_handle_ = ring_buffer_->registerSubscriber("legacy_subscriber");
-        if (legacy_handle_.has_value())
-        {
-            legacy_message_handler_ = handler;
-            legacy_subscribed_ = true;
-            return true;
-        }
-
-        return false;
-    }
-
-    void TopicChannel::unsubscribe()
-    {
-        if (legacy_subscribed_ && legacy_handle_.has_value())
-        {
-            ring_buffer_->unregisterSubscriber(legacy_handle_.value());
-            legacy_handle_.reset();
-        }
-
-        legacy_subscribed_ = false;
-        legacy_message_handler_ = nullptr;
-    }
-
-    bool TopicChannel::readMessages()
-    {
-        if (!legacy_subscribed_ || !legacy_message_handler_ || !ring_buffer_ || !legacy_handle_.has_value())
-        {
-            return false;
-        }
-
-        return ring_buffer_->poll(legacy_handle_.value(), legacy_message_handler_);
     }
 
     size_t TopicChannel::getActiveSubscriberCount() const
@@ -778,11 +725,11 @@ namespace position_distributor
         return static_cast<uint32_t>(hasher(topic));
     }
 
-    void TopicChannel::sendHeartbeat()
+    void TopicChannel::sendProdcuerHeartbeat()
     {
         if (ring_buffer_)
         {
-            ring_buffer_->sendHeartbeat();
+            ring_buffer_->sendProdcuerHeartbeat();
         }
     }
 
@@ -865,17 +812,24 @@ namespace position_distributor
 
     void SharedMemoryManager::cleanup()
     {
-        std::lock_guard<std::mutex> lock(topics_mutex_);
-
-        for (auto &[topic, channel] : topics_)
+        try
         {
-            channel->cleanup();
-        }
-        topics_.clear();
+            std::lock_guard<std::mutex> lock(topics_mutex_);
 
-        // POSIX shared memory objects are automatically cleaned up when unlinked
-        // No additional filesystem cleanup needed
-        LOG_INFO("Cleaned up all POSIX shared memory objects");
+            for (auto &[topic, channel] : topics_)
+            {
+                channel->cleanup();
+            }
+            topics_.clear();
+
+            // POSIX shared memory objects are automatically cleaned up when unlinked
+            // No additional filesystem cleanup needed
+            LOG_INFO("Cleaned up all POSIX shared memory objects");
+        }
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire topics mutex during cleanup: " + std::string(e.what()));
+        }
     }
 
     size_t SharedMemoryManager::getTopicCount() const

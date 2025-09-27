@@ -1,7 +1,7 @@
 #pragma once
 
-#include "position_distributor/position_media_driver.h"
-#include "position_distributor/sbe_encoding.h"
+#include "position_distributor/shared_memory_manager.h"
+#include "position_distributor/position_encoding.h"
 #include "position_distributor/position.h"
 #include <string>
 #include <vector>
@@ -96,11 +96,11 @@ namespace position_distributor
         SubscriberConfig config_;
         std::atomic<bool> connected_;
         std::atomic<bool> running_;
+        std::atomic<bool> cleanup_started_;
 
-        // Media driver integration
-        PositionMediaDriver *media_driver_;
         uint32_t subscriber_id_;
         std::shared_ptr<TopicChannel> topic_channel_;
+        std::optional<SubscriberHandle> subscriber_handle_;
 
         // Message processing
         std::thread message_thread_;

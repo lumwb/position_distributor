@@ -8,7 +8,7 @@ namespace position_distributor
 {
 
     PositionPublisher::PositionPublisher(const PublisherConfig &config)
-        : config_(config), connected_(false), running_(false), media_driver_(&MediaDriverManager::instance()), session_id_(0), sequence_number_(0), published_count_(0), failed_count_(0)
+        : config_(config), connected_(false), running_(false), cleanup_started_(false), session_id_(0), sequence_number_(0), published_count_(0), failed_count_(0)
     {
         if (config_.topic.empty())
         {
@@ -58,13 +58,17 @@ namespace position_distributor
 
     void PositionPublisher::disconnect()
     {
-        if (!connected_.load())
+        // Prevent double cleanup with atomic flag
+        bool expected = false;
+        if (!cleanup_started_.compare_exchange_strong(expected, true))
         {
+            LOG_DEBUG("Cleanup already in progress for topic: " + config_.topic);
             return;
         }
 
         LOG_INFO("Disconnecting publisher from topic: " + config_.topic);
 
+        // Signal threads to stop
         running_.store(false);
         connected_.store(false);
 
@@ -170,23 +174,31 @@ namespace position_distributor
         }
     }
 
-    bool PositionPublisher::sendHeartbeat()
+    bool PositionPublisher::sendProdcuerHeartbeat()
     {
         if (!connected_.load())
         {
             return false;
         }
 
-        // Update local heartbeat time
-        std::lock_guard<std::mutex> lock(heartbeat_mutex_);
-        last_heartbeat_ = std::chrono::steady_clock::now();
+        // Update local heartbeat time (safely handle mutex failures during cleanup)
+        try
+        {
+            std::lock_guard<std::mutex> lock(heartbeat_mutex_);
+            last_heartbeat_ = std::chrono::steady_clock::now();
+        }
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire heartbeat mutex: " + std::string(e.what()));
+            return false;
+        }
 
         // Update shared memory producer heartbeat
         auto &shm_manager = SharedMemoryManager::instance();
         auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
         if (topic_channel)
         {
-            topic_channel->sendHeartbeat();
+            topic_channel->sendProdcuerHeartbeat();
         }
         LOG_DEBUG("Sent heartbeat for topic: " + config_.topic);
 
@@ -195,8 +207,15 @@ namespace position_distributor
 
     void PositionPublisher::setErrorCallback(ErrorCallback callback)
     {
-        std::lock_guard<std::mutex> lock(callback_mutex_);
-        error_callback_ = callback;
+        try
+        {
+            std::lock_guard<std::mutex> lock(callback_mutex_);
+            error_callback_ = callback;
+        }
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire callback mutex: " + std::string(e.what()));
+        }
     }
 
     void PositionPublisher::heartbeatLoop()
@@ -210,7 +229,7 @@ namespace position_distributor
             if (!running_.load())
                 break;
 
-            if (!sendHeartbeat())
+            if (!sendProdcuerHeartbeat())
             {
                 LOG_WARN("Heartbeat failed for topic: " + config_.topic);
                 // Continue trying - don't break the loop on single failure
@@ -259,10 +278,17 @@ namespace position_distributor
     {
         LOG_ERROR("Publisher error for topic '" + config_.topic + "': " + std::to_string(static_cast<int>(error)));
 
-        std::lock_guard<std::mutex> lock(callback_mutex_);
-        if (error_callback_)
+        try
         {
-            error_callback_(config_.topic, error);
+            std::lock_guard<std::mutex> lock(callback_mutex_);
+            if (error_callback_)
+            {
+                error_callback_(config_.topic, error);
+            }
+        }
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire callback mutex for error callback: " + std::string(e.what()));
         }
     }
 

@@ -295,9 +295,9 @@ namespace position_distributor
         return active;
     }
 
-    bool PositionClient::sendHeartbeat()
+    bool PositionClient::sendProdcuerHeartbeat()
     {
-        return publisher_ ? publisher_->sendHeartbeat() : false;
+        return publisher_ ? publisher_->sendProdcuerHeartbeat() : false;
     }
 
     bool PositionClient::pollMessages()

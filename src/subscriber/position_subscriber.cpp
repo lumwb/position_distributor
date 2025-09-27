@@ -8,7 +8,7 @@ namespace position_distributor
 {
 
     PositionSubscriber::PositionSubscriber(const SubscriberConfig &config)
-        : config_(config), connected_(false), running_(false), producer_lost_(false), media_driver_(&MediaDriverManager::instance()), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0)
+        : config_(config), connected_(false), running_(false), cleanup_started_(false), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0)
     {
         if (config_.topic.empty())
         {
@@ -49,12 +49,11 @@ namespace position_distributor
             this->processMessage(data, length);
         };
 
-        // Use legacy subscribe method for backward compatibility - call the bool version explicitly
-        bool subscribed = topic_channel_->subscribe(message_handler);
-        if (!subscribed)
+        // Subscribe using the multi-subscriber interface
+        subscriber_handle_ = topic_channel_->subscribe(message_handler, ("subscriber_" + std::to_string(subscriber_id_)).c_str());
+        if (!subscriber_handle_.has_value())
         {
             LOG_ERROR("Failed to subscribe to topic channel: " + config_.topic);
-            media_driver_->unregisterSubscriber(subscriber_id_);
             subscriber_id_ = 0;
             return false;
         }
@@ -72,13 +71,17 @@ namespace position_distributor
 
     void PositionSubscriber::disconnect()
     {
-        if (!connected_.load())
+        // Prevent double cleanup with atomic flag
+        bool expected = false;
+        if (!cleanup_started_.compare_exchange_strong(expected, true))
         {
+            LOG_DEBUG("Cleanup already in progress for topic: " + config_.topic);
             return;
         }
 
         LOG_INFO("Disconnecting subscriber from topic: " + config_.topic);
 
+        // Signal threads to stop
         running_.store(false);
         connected_.store(false);
 
@@ -94,9 +97,10 @@ namespace position_distributor
         }
 
         // Unsubscribe from topic channel
-        if (topic_channel_)
+        if (topic_channel_ && subscriber_handle_.has_value())
         {
-            topic_channel_->unsubscribe();
+            topic_channel_->unsubscribe(subscriber_handle_.value());
+            subscriber_handle_.reset();
             topic_channel_.reset();
         }
 
@@ -132,7 +136,11 @@ namespace position_distributor
         }
 
         // Read messages from the ring buffer
-        return topic_channel_->readMessages();
+        if (!subscriber_handle_.has_value())
+        {
+            return false;
+        }
+        return topic_channel_->readMessages(subscriber_handle_.value());
     }
 
     void PositionSubscriber::messageLoop()
@@ -172,7 +180,8 @@ namespace position_distributor
                     LOG_WARN("Producer heartbeat lost for topic: " + config_.topic);
                     handleError(ConnectionError::PRODUCER_STALE);
 
-                    // Notify publisher disconnect callback
+                    // Notify publisher disconnect callback (safely handle mutex failures)
+                    try
                     {
                         std::lock_guard<std::mutex> lock(callback_mutex_);
                         if (publisher_disconnect_callback_)
@@ -180,10 +189,13 @@ namespace position_distributor
                             publisher_disconnect_callback_(config_.topic);
                         }
                     }
+                    catch (const std::system_error &e)
+                    {
+                        LOG_DEBUG("Unable to acquire callback mutex during cleanup: " + std::string(e.what()));
+                    }
 
-                    // Signal that producer is lost - let main thread handle disconnection
-                    LOG_INFO("Producer lost, signaling for graceful disconnection: " + config_.topic);
-                    connected_.store(false);
+                    // Stop running_thread and let it gracefully shutdown
+                    LOG_INFO("Producer lost, stop running_thread for " + config_.topic);
                     running_.store(false);
                     break; // Exit heartbeat loop
                 }
@@ -244,13 +256,19 @@ namespace position_distributor
             received_count_.fetch_add(1);
             last_sequence_number_.store(sequence_number);
 
-            // Invoke callback
+            // Invoke callback (safely handle mutex failures during cleanup)
+            try
             {
                 std::lock_guard<std::mutex> lock(callback_mutex_);
                 if (position_callback_)
                 {
                     position_callback_(update);
                 }
+            }
+            catch (const std::system_error &e)
+            {
+                LOG_DEBUG("Unable to acquire callback mutex for position update: " + std::string(e.what()));
+                return; // Skip this update
             }
 
             LOG_DEBUG("Processed position update: " + update.toString());
@@ -289,10 +307,17 @@ namespace position_distributor
     {
         LOG_ERROR("Subscriber error for topic '" + config_.topic + "': " + std::to_string(static_cast<int>(error)));
 
-        std::lock_guard<std::mutex> lock(callback_mutex_);
-        if (error_callback_)
+        try
         {
-            error_callback_(config_.topic, error);
+            std::lock_guard<std::mutex> lock(callback_mutex_);
+            if (error_callback_)
+            {
+                error_callback_(config_.topic, error);
+            }
+        }
+        catch (const std::system_error &e)
+        {
+            LOG_DEBUG("Unable to acquire callback mutex for error callback: " + std::string(e.what()));
         }
     }
 

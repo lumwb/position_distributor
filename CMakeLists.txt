@@ -28,9 +28,8 @@ set(COMMON_SOURCES
 
 # Shared memory implementation sources
 set(SHARED_MEMORY_SOURCES
-    src/shared_memory/sbe_encoding.cpp
+    src/shared_memory/position_encoding.cpp
     src/shared_memory/shared_memory_manager.cpp
-    src/shared_memory/position_media_driver.cpp
 )
 
 set(PUBLISHER_SOURCES
@@ -56,11 +55,7 @@ add_library(position_shm STATIC
 
 target_link_libraries(position_shm Threads::Threads)
 
-# Media Driver executable
-add_executable(media_driver
-    src/shared_memory/media_driver_main.cpp
-)
-target_link_libraries(media_driver position_shm Threads::Threads)
+# Media driver executable removed - using direct shared memory approach
 
 # Example executables
 add_executable(exchange_client_example
@@ -68,6 +63,12 @@ add_executable(exchange_client_example
 )
 target_link_libraries(exchange_client_example position_shm Threads::Threads)
 
+# Minimal test for debugging race conditions
+# add_executable(minimal_test
+#     minimal_test.cpp
+# )
+# target_link_libraries(minimal_test position_shm Threads::Threads)
+
 # Installation
-install(TARGETS media_driver exchange_client_example DESTINATION bin)
+install(TARGETS exchange_client_example DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
