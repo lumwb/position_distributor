@@ -1,9 +1,0 @@
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/position_server.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/position_client.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/simple_test.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/edit_cache.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/rebuild_cache.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/list_install_components.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/install.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/install/local.dir
-/Users/lumweiboon/Documents/Github/position_distributor/build/CMakeFiles/install/strip.dir

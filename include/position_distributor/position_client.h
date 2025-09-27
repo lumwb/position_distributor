@@ -1,69 +1,107 @@
 #pragma once
 
-#include "position_distributor/message.h"
-#include "position_distributor/position.h"
-#include <boost/asio.hpp>
+#include "position_distributor/position_publisher.h"
+#include "position_distributor/position_subscriber.h"
 #include <string>
+#include <vector>
 #include <memory>
-#include <thread>
-#include <atomic>
+#include <unordered_set>
+#include <mutex>
 #include <functional>
 
 namespace position_distributor
 {
 
-    class PositionClient : public MessageHandler
+    // Client configuration for exchange-level operations
+    struct PositionClientConfig
+    {
+        std::string exchange;                          // Exchange name (e.g., "BINANCE", "COINBASE")
+        std::vector<std::string> subscribed_exchanges; // Other exchanges to subscribe to
+        PublisherConfig publisher_config;              // Publisher configuration
+        SubscriberConfig subscriber_config;            // Subscriber configuration (template)
+
+        explicit PositionClientConfig(const std::string &exchange_name = "")
+            : exchange(exchange_name)
+        {
+            if (!exchange.empty())
+            {
+                publisher_config.topic = "position_update." + exchange;
+            }
+        }
+    };
+
+    // Exchange-level position client combining publisher and subscriber functionality
+    class PositionClient
     {
     public:
         using PositionUpdateCallback = std::function<void(const PositionUpdate &)>;
+        using ErrorCallback = std::function<void(const std::string &, ConnectionError)>;
+        using PublisherDisconnectCallback = std::function<void(const std::string &)>; // exchange (for per-exchange callbacks)
 
-        PositionClient(const std::string &strategy_id,
-                       const std::string &server_host,
-                       uint16_t server_port);
+        explicit PositionClient(const PositionClientConfig &config);
         ~PositionClient();
 
+        // Lifecycle
         bool connect();
         void disconnect();
+        bool isConnected() const;
 
-        // Publish position updates
-        void publishPositions(const std::vector<SymbolPosition> &positions);
+        // Publishing interface (for own exchange)
+        bool publishPositions(const std::string &strategy_id,
+                              const std::vector<SymbolPosition> &positions);
 
-        // Subscribe to position updates
-        void setPositionUpdateCallback(PositionUpdateCallback callback);
+        bool publishPositions(const std::string &strategy_id,
+                              const std::vector<std::pair<std::string, double>> &positions);
 
-        // MessageHandler interface
-        void onPositionUpdate(const PositionUpdate &update) override;
-        void onHeartbeat() override;
-        void onAcknowledge(uint64_t sequence_number) override;
-        void onError(const std::string &error) override;
+        // Subscription management (for other exchanges)
+        bool subscribeToExchange(const std::string &exchange,
+                                 PositionUpdateCallback position_callback,
+                                 PublisherDisconnectCallback disconnect_callback = nullptr);
+        bool unsubscribeFromExchange(const std::string &exchange);
+        std::vector<std::string> getSubscribedExchanges() const;
 
-        // Getters
-        const std::string &getStrategyId() const { return strategy_id_; }
-        bool isConnected() const { return connected_.load(); }
-        uint64_t getNextSequenceNumber() { return ++sequence_number_; }
+        // Global error callback (for connection issues)
+        void setErrorCallback(ErrorCallback callback);
+
+        // Configuration and statistics
+        const PositionClientConfig &getConfig() const { return config_; }
+        const std::string &getExchange() const { return config_.exchange; }
+
+        // Publisher statistics
+        uint64_t getPublishedCount() const;
+        uint64_t getPublishFailedCount() const;
+        uint64_t getCurrentSequenceNumber() const;
+
+        // Subscriber statistics
+        uint64_t getReceivedCount() const;
+        uint64_t getOrderingErrorCount() const;
+        size_t getActiveSubscriptionCount() const;
+
+        // Manual operations
+        bool sendProdcuerHeartbeat(); // Subscriber heartbeat is embedded in the polling
+        bool pollMessages();
 
     private:
-        void startHeartbeat();
-        void sendHeartbeat();
-        void handleConnectionError();
+        PositionClientConfig config_;
 
-        std::string strategy_id_;
-        std::string server_host_;
-        uint16_t server_port_;
+        // Core components
+        std::unique_ptr<PositionPublisher> publisher_;
+        std::unordered_map<std::string, std::unique_ptr<PositionSubscriber>> subscribers_;
 
-        boost::asio::io_context io_context_;
-        std::shared_ptr<TcpConnection> connection_;
-        std::thread io_thread_;
-
-        std::atomic<bool> connected_{false};
-        std::atomic<uint64_t> sequence_number_{0};
-
-        PositionUpdateCallback position_callback_;
+        // Thread safety
+        mutable std::mutex subscribers_mutex_;
         std::mutex callback_mutex_;
 
-        // Heartbeat
-        boost::asio::steady_timer heartbeat_timer_;
-        static constexpr int HEARTBEAT_INTERVAL_MS = 5000;
+        // Callbacks
+        ErrorCallback error_callback_;
+
+        // Internal methods
+        void handleError(const std::string &topic, ConnectionError error);
+        std::string getTopicForExchange(const std::string &exchange) const;
+
+        // Disable copy/move
+        PositionClient(const PositionClient &) = delete;
+        PositionClient &operator=(const PositionClient &) = delete;
     };
 
 } // namespace position_distributor

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(PositionDistributor VERSION 1.0.0 LANGUAGES CXX)
+project(PositionDistributor VERSION 2.0.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -17,44 +17,58 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 # Include directories
 include_directories(include)
 
-# Source files
+# Find required packages
+find_package(Threads REQUIRED)
+
+# Common source files
 set(COMMON_SOURCES
     src/common/position.cpp
     src/common/logger.cpp
-    src/common/simple_network.cpp
 )
 
-set(SERVER_SOURCES
-    src/server/simple_position_server.cpp
-    src/server/simple_position_server_main.cpp
-    ${COMMON_SOURCES}
+# Shared memory implementation sources
+set(SHARED_MEMORY_SOURCES
+    src/shared_memory/position_encoding.cpp
+    src/shared_memory/topic_system.cpp
+)
+
+set(PUBLISHER_SOURCES
+    src/publisher/position_publisher.cpp
+)
+
+set(SUBSCRIBER_SOURCES
+    src/subscriber/position_subscriber.cpp
 )
 
 set(CLIENT_SOURCES
-    src/client/simple_position_client.cpp
-    src/client/simple_position_client_main.cpp
+    src/client/position_client.cpp
+)
+
+# Create shared memory library
+add_library(position_shm STATIC
     ${COMMON_SOURCES}
+    ${SHARED_MEMORY_SOURCES}
+    ${PUBLISHER_SOURCES}
+    ${SUBSCRIBER_SOURCES}
+    ${CLIENT_SOURCES}
 )
 
-# Create executables
-add_executable(position_server ${SERVER_SOURCES})
-add_executable(position_client ${CLIENT_SOURCES})
+target_link_libraries(position_shm Threads::Threads)
 
-# Link libraries
-target_link_libraries(position_server pthread)
-target_link_libraries(position_client pthread)
+# Media driver executable removed - using direct shared memory approach
 
-# Create example executable
-add_executable(simple_test 
-    examples/simple_test.cpp
-    src/common/position.cpp
-    src/common/logger.cpp
-    src/common/simple_network.cpp
-    src/server/simple_position_server.cpp
-    src/client/simple_position_client.cpp
+# Example executables
+add_executable(exchange_client_example
+    examples/exchange_client_example.cpp
 )
+target_link_libraries(exchange_client_example position_shm Threads::Threads)
 
-target_link_libraries(simple_test pthread)
+# Minimal test for debugging race conditions
+# add_executable(minimal_test
+#     minimal_test.cpp
+# )
+# target_link_libraries(minimal_test position_shm Threads::Threads)
 
 # Installation
-install(TARGETS position_server position_client DESTINATION bin)
+install(TARGETS exchange_client_example DESTINATION bin)
+install(DIRECTORY include/ DESTINATION include)
