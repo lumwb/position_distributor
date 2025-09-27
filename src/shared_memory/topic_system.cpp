@@ -1,4 +1,4 @@
-#include "position_distributor/shared_memory_manager.h"
+#include "position_distributor/topic_system.h"
 #include "position_distributor/logger.h"
 #include "position_distributor/position_encoding.h"
 #include <sys/mman.h>
@@ -169,6 +169,14 @@ namespace position_distributor
 
         // 1. Add CACHELINE - 1 (to make sure we round up), 2. then filter out last CACHELINE - 1 bits -> 3. Effectively rounding up to multiple of CACHELINE
         const uint32_t aligned_size = (sizeof(MessageFrame) + length + (CACHELINE - 1)) & ~(CACHELINE - 1);
+
+        // For now only allow up to term_length size
+        if (aligned_size > term_length_)
+        {
+            LOG_ERROR("Message size (" + std::to_string(aligned_size) +
+                      ") exceeds term buffer size (" + std::to_string(term_length_) + ")");
+            return false;
+        }
 
         // Check backpressure before attempting reservation
         if (!producerCanWrite(aligned_size))
@@ -526,22 +534,6 @@ namespace position_distributor
         return header_ ? header_->min_consumer_pos.load(std::memory_order_acquire) : 0;
     }
 
-    bool SharedMemoryRingBuffer::hasUnreadData(const SubscriberHandle &handle) const
-    {
-        if (!header_ || !handle.isValid())
-        {
-            return false;
-        }
-
-        const auto &slot = header_->subs[handle.index];
-        if (slot.generation != handle.generation || slot.active.load(std::memory_order_acquire) != 1)
-        {
-            return false;
-        }
-
-        return getProducerPosition() > slot.cursor.load(std::memory_order_acquire);
-    }
-
     size_t SharedMemoryRingBuffer::getActiveSubscriberCount() const
     {
         if (!header_)
@@ -583,7 +575,6 @@ namespace position_distributor
         return info;
     }
 
-    // TopicChannel implementation with multi-subscriber support
     TopicChannel::TopicChannel(const std::string &topic)
         : topic_(topic)
     {
@@ -739,19 +730,19 @@ namespace position_distributor
         }
     }
 
-    // SharedMemoryManager implementation
-    SharedMemoryManager &SharedMemoryManager::instance()
+    // TopicRegistry implementation
+    TopicRegistry &TopicRegistry::instance()
     {
-        static SharedMemoryManager instance;
+        static TopicRegistry instance;
         return instance;
     }
 
-    SharedMemoryManager::~SharedMemoryManager()
+    TopicRegistry::~TopicRegistry()
     {
         cleanup();
     }
 
-    std::shared_ptr<TopicChannel> SharedMemoryManager::getOrCreateTopic(const std::string &topic)
+    std::shared_ptr<TopicChannel> TopicRegistry::getOrCreateTopic(const std::string &topic)
     {
         std::lock_guard<std::mutex> lock(topics_mutex_);
 
@@ -774,7 +765,7 @@ namespace position_distributor
         return channel;
     }
 
-    bool SharedMemoryManager::removeTopic(const std::string &topic)
+    bool TopicRegistry::removeTopic(const std::string &topic)
     {
         std::lock_guard<std::mutex> lock(topics_mutex_);
 
@@ -790,7 +781,7 @@ namespace position_distributor
         return false;
     }
 
-    void SharedMemoryManager::cleanup()
+    void TopicRegistry::cleanup()
     {
         try
         {
@@ -812,13 +803,13 @@ namespace position_distributor
         }
     }
 
-    size_t SharedMemoryManager::getTopicCount() const
+    size_t TopicRegistry::getTopicCount() const
     {
         std::lock_guard<std::mutex> lock(topics_mutex_);
         return topics_.size();
     }
 
-    std::vector<std::string> SharedMemoryManager::getTopicList() const
+    std::vector<std::string> TopicRegistry::getTopicList() const
     {
         std::lock_guard<std::mutex> lock(topics_mutex_);
 

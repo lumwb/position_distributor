@@ -217,9 +217,8 @@ int main(int argc, char *argv[])
         if (is_publisher_mode && clear_subscribers)
         {
             std::cout << "Clearing all subscriber slots for publisher topics..." << std::endl;
-            // Access the shared memory manager directly to clear subscribers
-            auto &shm_manager = SharedMemoryManager::instance();
-            auto topic_channel = shm_manager.getOrCreateTopic("position_update." + exchange);
+            auto &topic_registry = TopicRegistry::instance();
+            auto topic_channel = topic_registry.getOrCreateTopic("position_update." + exchange);
             if (topic_channel)
             {
                 topic_channel->clearAllSubscribers();

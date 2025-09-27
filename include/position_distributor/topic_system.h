@@ -131,7 +131,7 @@ namespace position_distributor
     struct TermBuffer
     {
         uint32_t term_id;
-        uint32_t reserved;
+        uint32_t reserved; // pad to 8 bytes
         uint8_t data[]; // Flexible array member
 
         TermBuffer() : term_id(0), reserved(0) {}
@@ -165,7 +165,6 @@ namespace position_distributor
         // Statistics
         uint64_t getProducerPosition() const;
         uint64_t getMinConsumerPosition() const;
-        bool hasUnreadData(const SubscriberHandle &handle) const;
 
         // Debugging/monitoring
         size_t getActiveSubscriberCount() const;
@@ -255,12 +254,12 @@ namespace position_distributor
     };
 
     // Main shared memory manager
-    class SharedMemoryManager
+    class TopicRegistry
     {
     public:
-        static SharedMemoryManager &instance();
+        static TopicRegistry &instance();
 
-        ~SharedMemoryManager();
+        ~TopicRegistry();
 
         // Topic management
         std::shared_ptr<TopicChannel> getOrCreateTopic(const std::string &topic);
@@ -272,14 +271,14 @@ namespace position_distributor
         std::vector<std::string> getTopicList() const;
 
     private:
-        SharedMemoryManager() = default;
+        TopicRegistry() = default;
 
         std::unordered_map<std::string, std::shared_ptr<TopicChannel>> topics_;
         mutable std::mutex topics_mutex_;
 
         // Singleton
-        SharedMemoryManager(const SharedMemoryManager &) = delete;
-        SharedMemoryManager &operator=(const SharedMemoryManager &) = delete;
+        TopicRegistry(const TopicRegistry &) = delete;
+        TopicRegistry &operator=(const TopicRegistry &) = delete;
     };
 
 } // namespace position_distributor

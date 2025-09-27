@@ -36,7 +36,6 @@ namespace position_distributor
         uint64_t timestamp;       // Timestamp in milliseconds since epoch
         uint64_t sequence_number; // Sequence number for ordering
         uint32_t position_count;  // Number of positions in this update
-        // SymbolPositionSBE positions[position_count] follows immediately after
 
         PositionUpdateSBE() = default;
         PositionUpdateSBE(const std::string &strategy, uint64_t seq_num, uint32_t pos_count)

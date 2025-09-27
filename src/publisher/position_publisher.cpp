@@ -37,8 +37,8 @@ namespace position_distributor
         LOG_INFO("Generated session ID: " + std::to_string(session_id_) + " for topic: " + config_.topic);
 
         // Try to create/access the shared memory topic
-        auto &shm_manager = SharedMemoryManager::instance();
-        auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
+        auto &topic_registry = TopicRegistry::instance();
+        auto topic_channel = topic_registry.getOrCreateTopic(config_.topic);
         if (!topic_channel)
         {
             LOG_ERROR("Failed to create/access shared memory topic: " + config_.topic);
@@ -196,8 +196,8 @@ namespace position_distributor
         }
 
         // Update shared memory producer heartbeat
-        auto &shm_manager = SharedMemoryManager::instance();
-        auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
+        auto &topic_registry = TopicRegistry::instance();
+        auto topic_channel = topic_registry.getOrCreateTopic(config_.topic);
         if (topic_channel)
         {
             topic_channel->sendProdcuerHeartbeat();
@@ -238,8 +238,8 @@ namespace position_distributor
             }
 
             // Check for subscriber heartbeat timeouts
-            auto &shm_manager = SharedMemoryManager::instance();
-            auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
+            auto &topic_registry = TopicRegistry::instance();
+            auto topic_channel = topic_registry.getOrCreateTopic(config_.topic);
             if (topic_channel)
             {
                 topic_channel->checkSubscriberHeartbeats();
@@ -257,8 +257,8 @@ namespace position_distributor
         }
 
         // Publish directly to shared memory
-        auto &shm_manager = SharedMemoryManager::instance();
-        auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
+        auto &topic_registry = TopicRegistry::instance();
+        auto topic_channel = topic_registry.getOrCreateTopic(config_.topic);
         if (!topic_channel)
         {
             LOG_ERROR("Failed to get topic channel: " + config_.topic);
@@ -270,7 +270,7 @@ namespace position_distributor
         if (!success)
         {
             LOG_WARN("Failed to publish message to topic: " + config_.topic);
-            handleError(ConnectionError::SLOW_CONSUMER);
+            handleError(ConnectionError::SLOW_CONSUMER); // Might be frame data exceed term size, but we haven't implemented Message Fragmentation
         }
 
         return success;

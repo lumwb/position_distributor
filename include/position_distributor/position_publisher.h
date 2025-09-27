@@ -1,6 +1,6 @@
 #pragma once
 
-#include "position_distributor/shared_memory_manager.h"
+#include "position_distributor/topic_system.h"
 #include "position_distributor/position_encoding.h"
 #include "position_distributor/position.h"
 #include <string>

@@ -54,8 +54,8 @@ namespace position_distributor
         subscriber_id_ = std::hash<std::string>{}(config_.topic + "subscriber" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 
         // Try to access the shared memory topic
-        auto &shm_manager = SharedMemoryManager::instance();
-        topic_channel_ = shm_manager.getOrCreateTopic(config_.topic);
+        auto &topic_registry = TopicRegistry::instance();
+        topic_channel_ = topic_registry.getOrCreateTopic(config_.topic);
         if (!topic_channel_)
         {
             LOG_ERROR("Failed to create/access shared memory topic: " + config_.topic);

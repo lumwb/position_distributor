@@ -29,7 +29,7 @@ set(COMMON_SOURCES
 # Shared memory implementation sources
 set(SHARED_MEMORY_SOURCES
     src/shared_memory/position_encoding.cpp
-    src/shared_memory/shared_memory_manager.cpp
+    src/shared_memory/topic_system.cpp
 )
 
 set(PUBLISHER_SOURCES
