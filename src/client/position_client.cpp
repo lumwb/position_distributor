@@ -8,22 +8,21 @@ namespace position_distributor
     PositionClient::PositionClient(const PositionClientConfig &config)
         : config_(config)
     {
-        if (config_.exchange.empty())
+        // Create publisher for own exchange (only if topic is configured)
+        if (!config_.publisher_config.topic.empty())
         {
-            throw std::invalid_argument("Exchange name cannot be empty");
+            publisher_ = std::make_unique<PositionPublisher>(config_.publisher_config);
+
+            // Set up publisher error callback
+            auto publisher_error_callback = [this](const std::string &topic, ConnectionError error)
+            {
+                this->handleError(topic, error);
+            };
+            publisher_->setErrorCallback(publisher_error_callback);
         }
 
-        // Create publisher for own exchange
-        publisher_ = std::make_unique<PositionPublisher>(config_.publisher_config);
-
-        // Set up publisher error callback
-        auto publisher_error_callback = [this](const std::string &topic, ConnectionError error)
-        {
-            this->handleError(topic, error);
-        };
-        publisher_->setErrorCallback(publisher_error_callback);
-
-        LOG_INFO("Created position client for exchange: " + config_.exchange);
+        LOG_INFO("Created position client for exchange: " + config_.exchange +
+                 (publisher_ ? " (with publisher)" : " (subscriber-only)"));
     }
 
     PositionClient::~PositionClient()
@@ -33,13 +32,15 @@ namespace position_distributor
 
     bool PositionClient::connect()
     {
-        LOG_INFO("Connecting position client for exchange: " + config_.exchange);
-
-        // Connect publisher
-        if (!publisher_->connect())
+        // Connect publisher (only if enabled)
+        if (publisher_)
         {
-            LOG_ERROR("Failed to connect publisher for exchange: " + config_.exchange);
-            return false;
+            if (!publisher_->connect())
+            {
+                LOG_ERROR("Failed to connect publisher for exchange: " + config_.exchange);
+                return false;
+            }
+            LOG_INFO("Connected publisher for exchange: " + config_.exchange);
         }
 
         // Subscribe to configured exchanges (with no callbacks - user must set them later)
@@ -50,19 +51,19 @@ namespace position_distributor
                 LOG_WARN("Failed to subscribe to exchange: " + exchange);
                 // Continue with other subscriptions
             }
+            LOG_INFO("Subscribed to exchange: " + exchange);
         }
 
-        LOG_INFO("Position client connected for exchange: " + config_.exchange);
         return true;
     }
 
     void PositionClient::disconnect()
     {
-        LOG_INFO("Disconnecting position client for exchange: " + config_.exchange);
 
         // Disconnect publisher
         if (publisher_)
         {
+            LOG_INFO("Disconnecting publisher for exchange: " + config_.exchange);
             publisher_->disconnect();
         }
 
@@ -71,17 +72,17 @@ namespace position_distributor
             std::lock_guard<std::mutex> lock(subscribers_mutex_);
             for (auto &[exchange, subscriber] : subscribers_)
             {
+                LOG_INFO("Disconnecting subscriber for exchange: " + exchange);
                 subscriber->disconnect();
             }
             subscribers_.clear();
         }
-
-        LOG_INFO("Position client disconnected for exchange: " + config_.exchange);
     }
 
     bool PositionClient::isConnected() const
     {
-        if (!publisher_ || !publisher_->isConnected())
+        // Check publisher connection (if enabled)
+        if (publisher_ && !publisher_->isConnected())
         {
             return false;
         }
@@ -90,7 +91,7 @@ namespace position_distributor
         std::lock_guard<std::mutex> lock(subscribers_mutex_);
         if (subscribers_.empty())
         {
-            return true; // No subscribers configured, publisher connection is sufficient
+            return publisher_ != nullptr; // If no subscribers, require publisher to be connected
         }
 
         // At least one subscriber should be connected
@@ -139,7 +140,8 @@ namespace position_distributor
             return false;
         }
 
-        if (exchange == config_.exchange)
+        // Only check for self-subscription if we have a publisher
+        if (publisher_ && exchange == config_.exchange)
         {
             LOG_WARN("Cannot subscribe to own exchange: " + exchange);
             return false;

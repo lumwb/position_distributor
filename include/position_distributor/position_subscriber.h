@@ -123,10 +123,13 @@ namespace position_distributor
         // Producer heartbeat state tracking
         std::atomic<bool> producer_heartbeat_lost_;
 
+        // Session tracking for producer restart detection
+        std::atomic<uint32_t> current_session_id_;
+
         // Internal methods
         void messageLoop();
         void heartbeatLoop();
-        void processMessage(const uint8_t *data, uint32_t length);
+        void processMessage(const uint8_t *data, uint32_t length, uint32_t session_id);
         bool validateOrdering(const std::string &strategy_id, uint64_t sequence_number);
         void handleError(ConnectionError error);
 

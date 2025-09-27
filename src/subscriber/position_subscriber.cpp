@@ -27,7 +27,7 @@ namespace position_distributor
 {
 
     PositionSubscriber::PositionSubscriber(const SubscriberConfig &config)
-        : config_(config), connected_(false), running_(false), cleanup_started_(false), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0), producer_heartbeat_lost_(false)
+        : config_(config), connected_(false), running_(false), cleanup_started_(false), subscriber_id_(0), last_sequence_number_(0), received_count_(0), ordering_errors_(0), producer_heartbeat_lost_(false), current_session_id_(0)
     {
         if (config_.topic.empty())
         {
@@ -63,9 +63,9 @@ namespace position_distributor
         }
 
         // Subscribe to topic channel messages
-        auto message_handler = [this](const uint8_t *data, uint32_t length)
+        auto message_handler = [this](const uint8_t *data, uint32_t length, uint32_t session_id)
         {
-            this->processMessage(data, length);
+            this->processMessage(data, length, session_id);
         };
 
         // Subscribe using the multi-subscriber interface
@@ -80,6 +80,7 @@ namespace position_distributor
         connected_.store(true);
         running_.store(true);
         producer_heartbeat_lost_.store(false); // Reset heartbeat state on connect
+        current_session_id_.store(0);          // Reset session tracking on connect
 
         // Start background threads
         message_thread_ = std::thread(&PositionSubscriber::messageLoop, this);
@@ -184,7 +185,6 @@ namespace position_distributor
             {
                 std::this_thread::sleep_for(config_.poll_interval);
             }
-            std::this_thread::sleep_for(config_.poll_interval);
         }
 
         LOG_INFO("Message processing thread stopped for topic: " + config_.topic);
@@ -196,7 +196,7 @@ namespace position_distributor
 
         while (running_.load())
         {
-            std::this_thread::sleep_for(config_.activity_interval); // Reuse activity_interval for heartbeat frequency
+            std::this_thread::sleep_for(config_.activity_interval);
 
             if (!running_.load())
                 break;
@@ -207,6 +207,10 @@ namespace position_distributor
                 // Check producer heartbeat
                 bool producer_alive = topic_channel_->isProducerAlive();
                 bool was_heartbeat_lost = producer_heartbeat_lost_.load();
+
+                LOG_DEBUG("Heartbeat check - producer_alive: " + std::string(producer_alive ? "true" : "false") +
+                          ", was_heartbeat_lost: " + std::string(was_heartbeat_lost ? "true" : "false") +
+                          " for topic: " + config_.topic);
 
                 if (!producer_alive && !was_heartbeat_lost)
                 {
@@ -244,11 +248,34 @@ namespace position_distributor
         LOG_INFO("Heartbeat thread stopped for topic: " + config_.topic);
     }
 
-    void PositionSubscriber::processMessage(const uint8_t *data, uint32_t length)
+    void PositionSubscriber::processMessage(const uint8_t *data, uint32_t length, uint32_t session_id)
     {
         if (!data || length == 0)
         {
             return;
+        }
+
+        // Check for session change (producer restart detection)
+        uint32_t expected_session = current_session_id_.load();
+        if (expected_session != session_id)
+        {
+            LOG_INFO("Producer session change detected (restart): " + std::to_string(expected_session) +
+                     " -> " + std::to_string(session_id) + " for topic: " + config_.topic);
+
+            // Reset sequence number tracking for all strategies
+            // This allows the new producer to start with sequence number 1 again
+            try
+            {
+                std::lock_guard<std::mutex> lock(sequence_mutex_);
+                strategy_sequence_map_.clear();
+                LOG_INFO("Reset sequence number tracking due to producer session change for topic: " + config_.topic);
+            }
+            catch (const std::system_error &e)
+            {
+                LOG_WARN("Unable to acquire sequence mutex during session change: " + std::string(e.what()));
+            }
+
+            current_session_id_.store(session_id);
         }
 
         try

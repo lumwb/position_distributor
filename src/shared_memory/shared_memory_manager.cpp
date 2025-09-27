@@ -58,6 +58,7 @@ namespace position_distributor
             name = name.substr(0, 30);
         }
 
+        LOG_DEBUG("Generated shared memory path: " + name + " for topic: " + topic_);
         return name;
     }
 
@@ -281,7 +282,7 @@ namespace position_distributor
         }
     }
 
-    bool SharedMemoryRingBuffer::poll(const SubscriberHandle &handle, std::function<void(const uint8_t *, uint32_t)> handler)
+    bool SharedMemoryRingBuffer::poll(const SubscriberHandle &handle, std::function<void(const uint8_t *, uint32_t, uint32_t)> handler)
     {
         if (!header_ || !handle.isValid() || !handler)
         {
@@ -333,8 +334,8 @@ namespace position_distributor
 
         if (frame->frame_type == MessageFrame::FRAME_TYPE_DATA)
         {
-            // Deliver payload
-            handler(frame->getPayload(), frame->getPayloadSize());
+            // Deliver payload with session_id for producer restart detection
+            handler(frame->getPayload(), frame->getPayloadSize(), frame->session_id);
         }
 
         // Advance this subscriber's cursor
@@ -407,9 +408,18 @@ namespace position_distributor
         if (!header_)
             return false;
         uint64_t last_heartbeat = header_->producer_heartbeat_ns.load(std::memory_order_acquire);
+        uint64_t now = nowNanos();
+        bool alive = (last_heartbeat == 0) || ((now - last_heartbeat) <= timeout_ns);
+
+        LOG_DEBUG("Producer alive check - last_heartbeat: " + std::to_string(last_heartbeat) +
+                  ", now: " + std::to_string(now) +
+                  ", timeout_ns: " + std::to_string(timeout_ns) +
+                  ", result: " + std::string(alive ? "true" : "false") +
+                  " for topic: " + topic_);
+
         if (last_heartbeat == 0)
             return true; // Producer hasn't started heartbeating yet
-        return (nowNanos() - last_heartbeat) <= timeout_ns;
+        return (now - last_heartbeat) <= timeout_ns;
     }
 
     bool SharedMemoryRingBuffer::isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns) const
@@ -594,7 +604,7 @@ namespace position_distributor
 
     // TopicChannel implementation with multi-subscriber support
     TopicChannel::TopicChannel(const std::string &topic)
-        : topic_(topic), stream_id_(calculateStreamId(topic))
+        : topic_(topic)
     {
         ring_buffer_ = std::make_unique<SharedMemoryRingBuffer>(topic);
     }
@@ -717,12 +727,6 @@ namespace position_distributor
     std::vector<std::pair<std::string, uint64_t>> TopicChannel::getSubscriberInfo() const
     {
         return ring_buffer_ ? ring_buffer_->getSubscriberInfo() : std::vector<std::pair<std::string, uint64_t>>{};
-    }
-
-    uint32_t TopicChannel::calculateStreamId(const std::string &topic)
-    {
-        std::hash<std::string> hasher;
-        return static_cast<uint32_t>(hasher(topic));
     }
 
     void TopicChannel::sendProdcuerHeartbeat()

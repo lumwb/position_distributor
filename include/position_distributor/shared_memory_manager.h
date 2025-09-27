@@ -80,7 +80,7 @@ namespace position_distributor
     struct SharedMemoryHeader
     {
         static constexpr uint32_t MAGIC_NUMBER = 0xAE70A1D0;
-        static constexpr uint32_t CURRENT_VERSION = 2; // Bump version for new layout
+        static constexpr uint32_t CURRENT_VERSION = 2;
 
         uint32_t magic_number; // Validation magic number
         uint32_t version;      // Schema version
@@ -157,7 +157,7 @@ namespace position_distributor
         void unregisterSubscriber(const SubscriberHandle &handle);
 
         // Consumer interface (per-subscriber, lock-free)
-        bool poll(const SubscriberHandle &handle, std::function<void(const uint8_t *, uint32_t)> handler);
+        bool poll(const SubscriberHandle &handle, std::function<void(const uint8_t *, uint32_t, uint32_t)> handler);
 
         // Management
         bool initialize();
@@ -226,7 +226,7 @@ namespace position_distributor
         bool publish(const uint8_t *data, uint32_t length, uint32_t session_id);
 
         // Multi-subscriber interface
-        using MessageHandler = std::function<void(const uint8_t *, uint32_t)>;
+        using MessageHandler = std::function<void(const uint8_t *, uint32_t, uint32_t)>; // data, length, session_id
         std::optional<SubscriberHandle> subscribe(MessageHandler handler, const char *subscriber_name = nullptr);
         void unsubscribe(const SubscriberHandle &handle);
 
@@ -241,7 +241,7 @@ namespace position_distributor
         std::vector<std::pair<std::string, uint64_t>> getSubscriberInfo() const;
 
         // Heartbeat functionality
-        void sendProdcuerHeartbeat();
+        void sendProdcuerHeartbeat();                                    // Reset heartbeat timestamp (for new producer sessions)
         bool isProducerAlive(uint64_t timeout_ns = 5000000000ULL) const; // 5 seconds default
         bool isSubscriberAlive(const SubscriberHandle &handle, uint64_t timeout_ns = 5000000000ULL) const;
         void checkSubscriberHeartbeats(uint64_t timeout_ns = 5000000000ULL) const; // Check all subscribers
@@ -257,8 +257,6 @@ namespace position_distributor
         // Multi-subscriber support
         std::unordered_map<uint32_t, MessageHandler> subscriber_handlers_; // index -> handler
         mutable std::mutex handlers_mutex_;                                // Protect handler map only
-
-        uint32_t calculateStreamId(const std::string &topic);
     };
 
     // Main shared memory manager

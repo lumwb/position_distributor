@@ -141,7 +141,14 @@ int main(int argc, char *argv[])
     Logger::instance().setLevel(LogLevel::INFO);
 
     std::cout << "=== Exchange Position Client ===" << std::endl;
-    std::cout << "Exchange: " << exchange << std::endl;
+    if (!exchange.empty())
+    {
+        std::cout << "Publisher Exchange: " << exchange << std::endl;
+    }
+    else
+    {
+        std::cout << "Mode: Subscriber-only" << std::endl;
+    }
 
     if (!subscribe_to.empty())
     {
@@ -159,15 +166,15 @@ int main(int argc, char *argv[])
     {
         // Handle subscriber-only mode
         bool is_publisher_mode = !exchange.empty();
-        if (!is_publisher_mode)
-        {
-            exchange = "SUBSCRIBER_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-            std::cout << "Subscriber-only mode: Using dummy publisher exchange: " << exchange << std::endl;
-        }
 
         // Create client configuration
-        PositionClientConfig config(exchange);
+        PositionClientConfig config(exchange); // If exchange is empty, publisher_config.topic will be empty too
         config.subscribed_exchanges = subscribe_to;
+
+        if (!is_publisher_mode)
+        {
+            std::cout << "Subscriber-only mode: Publisher disabled" << std::endl;
+        }
 
         // Create position client
         g_client = std::make_unique<PositionClient>(config);
@@ -228,7 +235,6 @@ int main(int argc, char *argv[])
         {
             LOG_INFO("Connected! Subscriber-only mode - waiting for position updates...");
         }
-        LOG_INFO("Press Ctrl+C to stop.");
 
         // Random number generator for position simulation
         std::random_device rd;

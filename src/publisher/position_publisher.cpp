@@ -34,6 +34,8 @@ namespace position_distributor
         // Generate a unique session ID for this publisher
         session_id_ = std::hash<std::string>{}(config_.topic + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 
+        LOG_INFO("Generated session ID: " + std::to_string(session_id_) + " for topic: " + config_.topic);
+
         // Try to create/access the shared memory topic
         auto &shm_manager = SharedMemoryManager::instance();
         auto topic_channel = shm_manager.getOrCreateTopic(config_.topic);
@@ -199,8 +201,8 @@ namespace position_distributor
         if (topic_channel)
         {
             topic_channel->sendProdcuerHeartbeat();
+            LOG_DEBUG("Sent heartbeat for topic: " + config_.topic);
         }
-        LOG_DEBUG("Sent heartbeat for topic: " + config_.topic);
 
         return true;
     }
