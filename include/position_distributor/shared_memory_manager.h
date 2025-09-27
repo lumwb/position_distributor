@@ -60,8 +60,7 @@ namespace position_distributor
         // payload follows...
 
         static constexpr uint16_t FRAME_TYPE_DATA = 1;
-        static constexpr uint16_t FRAME_TYPE_HEARTBEAT = 2;
-        static constexpr uint16_t FRAME_TYPE_PADDING = 3;
+        static constexpr uint16_t FRAME_TYPE_PADDING = 2;
 
         MessageFrame() : frame_length(0), frame_type(0), reserved(0),
                          session_id(0), stream_id(0), term_id(0), term_offset(0) {}

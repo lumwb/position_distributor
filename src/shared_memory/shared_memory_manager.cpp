@@ -167,7 +167,8 @@ namespace position_distributor
             return false;
         }
 
-        const uint32_t aligned_size = (sizeof(MessageFrame) + length + 31) & ~31U; // 32-byte alignment
+        // 1. Add CACHELINE - 1 (to make sure we round up), 2. then filter out last CACHELINE - 1 bits -> 3. Effectively rounding up to multiple of CACHELINE 
+        const uint32_t aligned_size = (sizeof(MessageFrame) + length + (CACHELINE - 1)) & ~(CACHELINE - 1);
 
         // Check backpressure before attempting reservation
         if (!producerCanWrite(aligned_size))
