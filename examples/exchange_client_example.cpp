@@ -182,10 +182,9 @@ int main(int argc, char *argv[])
         // Set error callback
         g_client->setErrorCallback(onError);
 
-        // Connect to media driver
         if (!g_client->connect())
         {
-            std::cerr << "Failed to connect to media driver" << std::endl;
+            std::cerr << "Failed to connect" << std::endl;
             return 1;
         }
 

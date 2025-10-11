@@ -55,19 +55,11 @@ add_library(position_shm STATIC
 
 target_link_libraries(position_shm Threads::Threads)
 
-# Media driver executable removed - using direct shared memory approach
-
 # Example executables
 add_executable(exchange_client_example
     examples/exchange_client_example.cpp
 )
 target_link_libraries(exchange_client_example position_shm Threads::Threads)
-
-# Minimal test for debugging race conditions
-# add_executable(minimal_test
-#     minimal_test.cpp
-# )
-# target_link_libraries(minimal_test position_shm Threads::Threads)
 
 # Installation
 install(TARGETS exchange_client_example DESTINATION bin)

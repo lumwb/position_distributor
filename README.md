@@ -240,16 +240,8 @@ Options:
 - **Error callbacks**: Application-level error handling for connection issues
 
 ## Assumptions
-
-### Same-Box Deployment
-- **Shared Memory Requirement**: All components must run on the same physical machine
-- **Process Isolation**: Different exchanges run as separate processes
-- **Memory Sharing**: All processes share the same virtual memory space for topics
-
-### SPMC Communication Pattern
-- **Single Producer**: For each exchange only-one publisher
-- **Multiple Consumers**: Can be in different processes or multiple subscription of same topic on same box
-- **Topic Isolation**: Each exchange has its dedicated topic namespace (e.g. position_update.BINANCE)
+1. All processes / clients are running on the same machine
+2. SPMC - only one producer per topic (or exchange)
 
 ## Future Improvements
 
