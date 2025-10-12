@@ -208,7 +208,7 @@ namespace position_distributor
         void updateMinConsumerPosition();
     };
 
-    // Topic channel management with multi-subscriber support
+    // Topic channel management with single subscription per process
     class TopicChannel
     {
     public:
@@ -221,13 +221,11 @@ namespace position_distributor
         // Publisher interface
         bool publish(const uint8_t *data, uint32_t length, uint32_t session_id);
 
-        // Multi-subscriber interface
+        // Single subscriber interface - no SubscriberHandle exposure
         using MessageHandler = std::function<void(const uint8_t *data, uint32_t length, uint32_t session_id)>;
-        std::optional<SubscriberHandle> subscribe(MessageHandler handler, const char *subscriber_name = nullptr);
-        void unsubscribe(const SubscriberHandle &handle);
-
-        // Polling interface for registered subscribers
-        bool readMessages(const SubscriberHandle &handle);
+        bool subscribe(MessageHandler handler, const char *subscriber_name = nullptr);
+        bool poll(); // Simple poll method - no parameters needed
+        bool hasSubscription() const;
 
         const std::string &getTopic() const { return topic_; }
         bool isInitialized() const { return ring_buffer_ && ring_buffer_->isInitialized(); }
@@ -247,13 +245,12 @@ namespace position_distributor
     private:
         std::string topic_;
         std::unique_ptr<SharedMemoryRingBuffer> ring_buffer_;
-
-        // Multi-subscriber support
-        std::unordered_map<uint32_t, MessageHandler> subscriber_handlers_; // index -> handler
-        mutable std::mutex handlers_mutex_;                                // Protect handler map only
+        
+        // Single subscription per process - no SubscriberHandle exposed outside
+        std::optional<SubscriberHandle> subscriber_handle_;
+        std::unique_ptr<MessageHandler> message_handler_;
     };
 
-    // Main shared memory manager
     class TopicRegistry
     {
     public:

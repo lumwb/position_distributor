@@ -62,15 +62,12 @@ namespace position_distributor
             return false;
         }
 
-        // Subscribe to topic channel messages
         auto message_handler = [this](const uint8_t *data, uint32_t length, uint32_t session_id)
         {
             this->processMessage(data, length, session_id);
         };
 
-        // Subscribe using the multi-subscriber interface
-        subscriber_handle_ = topic_channel_->subscribe(message_handler, ("subscriber_" + std::to_string(subscriber_id_)).c_str());
-        if (!subscriber_handle_.has_value())
+        if (!topic_channel_->subscribe(message_handler, ("subscriber_" + std::to_string(subscriber_id_)).c_str()))
         {
             LOG_ERROR("Failed to subscribe to topic channel: " + config_.topic);
             subscriber_id_ = 0;
@@ -117,11 +114,10 @@ namespace position_distributor
             heartbeat_thread_.join();
         }
 
-        // Unsubscribe from topic channel
-        if (topic_channel_ && subscriber_handle_.has_value())
+        // Topic channel cleanup is handled in TopicChannel::cleanup()
+        // Just reset our reference
+        if (topic_channel_)
         {
-            topic_channel_->unsubscribe(subscriber_handle_.value());
-            subscriber_handle_.reset();
             topic_channel_.reset();
         }
 
@@ -131,10 +127,28 @@ namespace position_distributor
         LOG_INFO("Subscriber disconnected from topic: " + config_.topic);
     }
 
-    void PositionSubscriber::setPositionUpdateCallback(PositionUpdateCallback callback)
+    std::string PositionSubscriber::addPositionUpdateCallback(PositionUpdateCallback callback)
     {
         std::lock_guard<std::mutex> lock(callback_mutex_);
-        position_callback_ = callback;
+        std::string callback_id = "callback_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        position_callbacks_[callback_id] = callback;
+        LOG_INFO("Added position callback: " + callback_id + " for topic: " + config_.topic);
+
+        return callback_id;
+    }
+
+    bool PositionSubscriber::removePositionUpdateCallback(const std::string &callback_id)
+    {
+        std::lock_guard<std::mutex> lock(callback_mutex_);
+        auto it = position_callbacks_.find(callback_id);
+        if (it != position_callbacks_.end())
+        {
+            position_callbacks_.erase(it);
+            LOG_INFO("Removed position callback: " + callback_id + " for topic: " + config_.topic);
+            return true;
+        }
+        LOG_WARN("Callback not found: " + callback_id + " for topic: " + config_.topic);
+        return false;
     }
 
     void PositionSubscriber::setErrorCallback(ErrorCallback callback)
@@ -156,12 +170,8 @@ namespace position_distributor
             return false;
         }
 
-        // Read messages from the ring buffer
-        if (!subscriber_handle_.has_value())
-        {
-            return false;
-        }
-        return topic_channel_->readMessages(subscriber_handle_.value());
+        // Use the new simple poll() method - no SubscriberHandle needed
+        return topic_channel_->poll();
     }
 
     void PositionSubscriber::messageLoop()
@@ -322,13 +332,16 @@ namespace position_distributor
             received_count_.fetch_add(1);
             last_sequence_number_.store(sequence_number);
 
-            // Invoke callback (safely handle mutex failures during cleanup)
+            // Dispatch to all registered callbacks
             try
             {
                 std::lock_guard<std::mutex> lock(callback_mutex_);
-                if (position_callback_)
+                for (const auto &[callback_id, callback] : position_callbacks_)
                 {
-                    position_callback_(update);
+                    if (callback)
+                    {
+                        callback(update);
+                    }
                 }
             }
             catch (const std::system_error &e)
@@ -386,5 +399,4 @@ namespace position_distributor
             LOG_DEBUG("Unable to acquire callback mutex for error callback: " + std::string(e.what()));
         }
     }
-
 } // namespace position_distributor

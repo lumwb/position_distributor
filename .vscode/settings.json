@@ -49,6 +49,7 @@
         "variant": "cpp",
         "algorithm": "cpp",
         "__assert": "cpp",
-        "unordered_map": "cpp"
+        "unordered_map": "cpp",
+        "shared_mutex": "cpp"
     }
 }
