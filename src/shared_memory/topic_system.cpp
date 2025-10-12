@@ -593,20 +593,12 @@ namespace position_distributor
 
     void TopicChannel::cleanup()
     {
-        // Unregister all subscribers (safely handle mutex failures during cleanup)
-        try
+        // Unregister the single subscriber if it exists
+        if (subscriber_handle_.has_value())
         {
-            std::lock_guard<std::mutex> lock(handlers_mutex_);
-            for (const auto &[index, handler] : subscriber_handlers_)
-            {
-                SubscriberHandle handle{index, 0}; // generation doesn't matter for cleanup
-                ring_buffer_->unregisterSubscriber(handle);
-            }
-            subscriber_handlers_.clear();
-        }
-        catch (const std::system_error &e)
-        {
-            LOG_DEBUG("Unable to acquire handlers mutex during cleanup: " + std::string(e.what()));
+            ring_buffer_->unregisterSubscriber(*subscriber_handle_);
+            subscriber_handle_.reset();
+            message_handler_.reset();
         }
 
         if (ring_buffer_)
@@ -620,76 +612,49 @@ namespace position_distributor
         return ring_buffer_->write(data, length, session_id);
     }
 
-    // Multi-subscriber interface
-    std::optional<SubscriberHandle> TopicChannel::subscribe(MessageHandler handler, const char *subscriber_name)
+    // Single subscriber interface
+    bool TopicChannel::subscribe(MessageHandler handler, const char *subscriber_name)
     {
         if (!ring_buffer_)
         {
-            return std::nullopt;
+            LOG_ERROR("Ring buffer not initialized for topic: " + topic_);
+            return false;
+        }
+
+        if (subscriber_handle_.has_value())
+        {
+            LOG_ERROR("Process already has a subscriber for topic: " + topic_);
+            return false;
         }
 
         auto handle = ring_buffer_->registerSubscriber(subscriber_name);
         if (handle.has_value())
-            try
-            {
-                std::lock_guard<std::mutex> lock(handlers_mutex_);
-                subscriber_handlers_[handle->index] = handler;
-            }
-            catch (const std::system_error &e)
-            {
-                LOG_DEBUG("Unable to acquire handlers mutex: " + std::string(e.what()));
-                return std::nullopt;
-            }
+        {
+            subscriber_handle_ = handle;
+            message_handler_ = std::make_unique<MessageHandler>(std::move(handler));
+            LOG_INFO("Subscribed to topic: " + topic_ + " with name: " + (subscriber_name ? subscriber_name : "unnamed"));
+            return true;
+        }
 
-        return handle;
+        LOG_ERROR("Failed to register subscriber for topic: " + topic_);
+        return false;
     }
 
-    void TopicChannel::unsubscribe(const SubscriberHandle &handle)
+    bool TopicChannel::poll()
     {
-        if (!ring_buffer_)
-        {
-            return;
-        }
-
-        try
-        {
-            std::lock_guard<std::mutex> lock(handlers_mutex_);
-            subscriber_handlers_.erase(handle.index);
-        }
-        catch (const std::system_error &e)
-        {
-            LOG_DEBUG("Unable to acquire handlers mutex for unsubscribe: " + std::string(e.what()));
-        }
-
-        ring_buffer_->unregisterSubscriber(handle);
-    }
-
-    bool TopicChannel::readMessages(const SubscriberHandle &handle)
-    {
-        if (!ring_buffer_)
+        if (!ring_buffer_ || !subscriber_handle_.has_value() || !message_handler_)
         {
             return false;
         }
 
-        MessageHandler handler;
-        try
-        {
-            std::lock_guard<std::mutex> lock(handlers_mutex_);
-            auto it = subscriber_handlers_.find(handle.index);
-            if (it == subscriber_handlers_.end())
-            {
-                return false;
-            }
-            handler = it->second;
-        }
-        catch (const std::system_error &e)
-        {
-            LOG_DEBUG("Unable to acquire handlers mutex for readMessages: " + std::string(e.what()));
-            return false;
-        }
-
-        return ring_buffer_->poll(handle, handler);
+        return ring_buffer_->poll(*subscriber_handle_, *message_handler_);
     }
+
+    bool TopicChannel::hasSubscription() const
+    {
+        return subscriber_handle_.has_value();
+    }
+
 
     size_t TopicChannel::getActiveSubscriberCount() const
     {

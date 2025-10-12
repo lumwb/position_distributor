@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <mutex>
 #include <functional>
+#include <shared_mutex>
 
 namespace position_distributor
 {
@@ -18,10 +19,11 @@ namespace position_distributor
         std::string exchange;                          // Exchange name (e.g., "BINANCE", "COINBASE")
         std::vector<std::string> subscribed_exchanges; // Other exchanges to subscribe to
         PublisherConfig publisher_config;              // Publisher configuration
-        SubscriberConfig subscriber_config;            // Subscriber configuration (template)
+        SubscriberConfig subscriber_config;            // Subscriber configuration (default same for each subscribed_exchange)
+        bool should_cache_positions;                   // Whether to cache positions (default true)
 
         explicit PositionClientConfig(const std::string &exchange_name = "")
-            : exchange(exchange_name)
+            : exchange(exchange_name), should_cache_positions(true)
         {
             if (!exchange.empty())
             {
@@ -43,6 +45,7 @@ namespace position_distributor
 
         // Lifecycle
         bool connect();
+        bool createAndConnectSubscriber(const std::string &exchange);
         void disconnect();
         bool isConnected() const;
 
@@ -81,6 +84,8 @@ namespace position_distributor
         bool sendProdcuerHeartbeat(); // Subscriber heartbeat is embedded in the polling
         bool pollMessages();
 
+        std::optional<double> getPosition(const std::string &exchange, const std::string &symbol) const;
+
     private:
         PositionClientConfig config_;
 
@@ -102,6 +107,19 @@ namespace position_distributor
         // Disable copy/move
         PositionClient(const PositionClient &) = delete;
         PositionClient &operator=(const PositionClient &) = delete;
+
+        // Cache of exchange -> symbol -> position
+        std::unordered_map<std::string, std::unordered_map<std::string, double>> position_cache_;
+        // Per-exchange mutexes
+        mutable std::unordered_map<std::string, std::unique_ptr<std::shared_mutex>> exchange_shared_mutexes_;
+        mutable std::mutex exchange_mutexes_mutex_; // Protects the mutex map itself
+
+        // Get or create shared mutex for exchange
+        std::shared_mutex &getExchangeSharedMutex(const std::string &exchange) const;
+
+        // Methods to update cache
+        void updatePositionCache(const std::string &exchange, const std::string &symbol, double position);
+        void clearExchangeCache(const std::string &exchange);
     };
 
 } // namespace position_distributor

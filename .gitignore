@@ -191,3 +191,4 @@ config.local.*
 *.tgz
 *.rar
 *.7z
+post_assignment.txt

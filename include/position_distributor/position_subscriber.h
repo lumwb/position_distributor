@@ -17,7 +17,7 @@ namespace position_distributor
     // Subscriber configuration
     struct SubscriberConfig
     {
-        std::string topic;                           // Topic to subscribe to
+        std::string topic;                           // Topic to subscribe to 
         std::chrono::milliseconds poll_interval;     // How often to poll for messages
         std::chrono::milliseconds activity_interval; // How often to report activity
         bool enable_ordering_check;                  // Check sequence numbers for ordering
@@ -45,8 +45,9 @@ namespace position_distributor
         void disconnect();
         bool isConnected() const { return connected_.load(); }
 
-        // Subscription interface
-        void setPositionUpdateCallback(PositionUpdateCallback callback);
+        // Multiple callback support - PositionSubscriber manages callbacks internally
+        std::string addPositionUpdateCallback(PositionUpdateCallback callback);
+        bool removePositionUpdateCallback(const std::string &callback_id);
         void setErrorCallback(ErrorCallback callback);
         void setPublisherDisconnectCallback(PublisherDisconnectCallback callback);
 
@@ -69,14 +70,13 @@ namespace position_distributor
 
         uint32_t subscriber_id_;
         std::shared_ptr<TopicChannel> topic_channel_;
-        std::optional<SubscriberHandle> subscriber_handle_;
 
         // Message processing
         std::thread message_thread_;
         std::thread heartbeat_thread_;
 
-        // Callbacks
-        PositionUpdateCallback position_callback_;
+        // Multiple callbacks support
+        std::unordered_map<std::string, PositionUpdateCallback> position_callbacks_;
         ErrorCallback error_callback_;
         PublisherDisconnectCallback publisher_disconnect_callback_;
         std::mutex callback_mutex_;

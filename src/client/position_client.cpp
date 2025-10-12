@@ -43,17 +43,36 @@ namespace position_distributor
             LOG_INFO("Connected publisher for exchange: " + config_.exchange);
         }
 
-        // Subscribe to configured exchanges (with no callbacks - user must set them later)
-        for (const std::string &exchange : config_.subscribed_exchanges)
+        if (!config_.subscribed_exchanges.empty())
         {
-            if (!subscribeToExchange(exchange, nullptr, nullptr))
+            for (const std::string &exchange : config_.subscribed_exchanges)
             {
-                LOG_WARN("Failed to subscribe to exchange: " + exchange);
-                // Continue with other subscriptions
+                createAndConnectSubscriber(exchange);
             }
-            LOG_INFO("Subscribed to exchange: " + exchange);
         }
 
+        return true;
+    }
+
+    bool PositionClient::createAndConnectSubscriber(const std::string &exchange)
+    {
+        std::lock_guard<std::mutex> lock(subscribers_mutex_);
+
+        if (subscribers_.find(exchange) != subscribers_.end())
+        {
+            LOG_WARN("Already created subscriber for exchange: " + exchange);
+            return true;
+        }
+
+        SubscriberConfig sub_config = config_.subscriber_config;
+        sub_config.topic = getTopicForExchange(exchange);
+        subscribers_[exchange] = std::make_unique<PositionSubscriber>(sub_config);
+        if (!subscribers_[exchange]->connect())
+        {
+            LOG_ERROR("Failed to connect subscriber for exchange: " + exchange);
+            return false;
+        }
+        LOG_INFO("Connected subscriber for exchange: " + exchange);
         return true;
     }
 
@@ -149,24 +168,44 @@ namespace position_distributor
 
         std::lock_guard<std::mutex> lock(subscribers_mutex_);
 
-        // Check if already subscribed
-        if (subscribers_.find(exchange) != subscribers_.end())
+        // Try fetch PositionSubscriber for exchange
+        auto it = subscribers_.find(exchange);
+        if (it == subscribers_.end())
         {
-            LOG_WARN("Already subscribed to exchange: " + exchange);
-            return true;
+            // attempt to initialise one and continue
+            if (!createAndConnectSubscriber(exchange))
+            {
+                LOG_ERROR("Failed to create and connect subscriber for exchange: " + exchange);
+                return false;
+            }
+            it = subscribers_.find(exchange);
         }
 
-        // Create subscriber configuration
-        SubscriberConfig sub_config = config_.subscriber_config;
-        sub_config.topic = getTopicForExchange(exchange);
-
-        // Create subscriber
-        auto subscriber = std::make_unique<PositionSubscriber>(sub_config);
+        auto *subscriber = it->second.get(); // Returns PositionSubscriber* or nullptr
+        if (!subscriber)
+        {
+            LOG_ERROR("Failed to get subscriber for exchange: " + exchange);
+            return false;
+        }
 
         // Set callbacks - use the provided position callback directly
         if (position_callback)
         {
-            subscriber->setPositionUpdateCallback(position_callback);
+            auto adjusted_position_callback = [this, exchange, position_callback](const PositionUpdate &update)
+            {
+                // Call user's callback
+                position_callback(update);
+
+                if (config_.should_cache_positions)
+                {
+                    for (const auto &pos : update.positions)
+                    {
+                        this->updatePositionCache(exchange, pos.symbol, pos.net_position);
+                    }
+                }
+            };
+
+            subscriber->addPositionUpdateCallback(adjusted_position_callback);
         }
 
         // Set error callback to use our internal error handler
@@ -186,17 +225,6 @@ namespace position_distributor
             subscriber->setPublisherDisconnectCallback(publisher_disconnect);
         }
 
-        // Connect subscriber
-        if (!subscriber->connect())
-        {
-            LOG_ERROR("Failed to connect subscriber for exchange: " + exchange);
-            return false;
-        }
-
-        // Store subscriber
-        subscribers_[exchange] = std::move(subscriber);
-
-        LOG_INFO("Subscribed to exchange: " + exchange);
         return true;
     }
 
@@ -334,4 +362,48 @@ namespace position_distributor
         return "position_update." + exchange;
     }
 
+    std::shared_mutex &PositionClient::getExchangeSharedMutex(const std::string &exchange) const
+    {
+        std::lock_guard<std::mutex> lock(exchange_mutexes_mutex_);
+        auto it = exchange_shared_mutexes_.find(exchange);
+        if (it == exchange_shared_mutexes_.end())
+        {
+            exchange_shared_mutexes_[exchange] = std::make_unique<std::shared_mutex>();
+            return *exchange_shared_mutexes_[exchange];
+        }
+        return *it->second;
+    }
+
+    std::optional<double> PositionClient::getPosition(const std::string &exchange, const std::string &symbol) const
+    {
+        // Shared lock allows multiple concurrent readers
+        std::shared_lock<std::shared_mutex> lock(getExchangeSharedMutex(exchange));
+
+        auto exchange_it = position_cache_.find(exchange);
+        if (exchange_it == position_cache_.end())
+        {
+            return std::nullopt;
+        }
+
+        auto symbol_it = exchange_it->second.find(symbol);
+        if (symbol_it == exchange_it->second.end())
+        {
+            return std::nullopt;
+        }
+
+        return symbol_it->second; // Return by value for thread safety
+    }
+
+    void PositionClient::updatePositionCache(const std::string &exchange, const std::string &symbol, double position)
+    {
+        std::unique_lock<std::shared_mutex> lock(getExchangeSharedMutex(exchange));
+        position_cache_[exchange][symbol] = position;
+        LOG_INFO("Updated position cache for exchange: " + exchange + " symbol: " + symbol + " position: " + std::to_string(position));
+    }
+
+    void PositionClient::clearExchangeCache(const std::string &exchange)
+    {
+        std::unique_lock<std::shared_mutex> lock(getExchangeSharedMutex(exchange));
+        position_cache_.erase(exchange);
+    }
 } // namespace position_distributor

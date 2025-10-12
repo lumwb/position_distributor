@@ -5,10 +5,22 @@
 #include <thread>
 #include <chrono>
 #include <signal.h>
+#include <unistd.h>
+#include <unordered_set>
 
 using namespace position_distributor;
 
 std::unique_ptr<PositionClient> g_client;
+
+const std::unordered_map<std::string, std::string> exchange_to_short_name = {
+    {"BINANCE", "BN"},
+    {"HUOBI", "HB"},
+    {"KRAKEN", "KA"},
+    {"COINBASE", "CB"}};
+
+const std::vector<std::string> symbols = {
+    "BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT",
+    "BNBUSDT", "SOLUSDT", "MATICUSDT", "AVAXUSDT", "UNIUSDT"};
 
 void signalHandler(int signal)
 {
@@ -75,6 +87,17 @@ void printUsage(const char *program_name)
     std::cerr << "  " << program_name << " -p BINANCE                        # Publish BINANCE only" << std::endl;
     std::cerr << "  " << program_name << " -p BINANCE --clear-subs           # Publish BINANCE, clear stale subscribers" << std::endl;
     std::cerr << "  " << program_name << " -s BINANCE -s COINBASE            # Subscribe only (no publishing)" << std::endl;
+}
+
+std::string symbolWithShortName(const std::string &symbol, const std::string &exchange)
+{
+    if (exchange_to_short_name.find(exchange) == exchange_to_short_name.end())
+    {
+        // concat symbol + "." + exchange
+        return symbol + "." + exchange;
+    }
+
+    return symbol + "." + exchange_to_short_name.at(exchange);
 }
 
 int main(int argc, char *argv[])
@@ -182,10 +205,9 @@ int main(int argc, char *argv[])
         // Set error callback
         g_client->setErrorCallback(onError);
 
-        // Connect to media driver
         if (!g_client->connect())
         {
-            std::cerr << "Failed to connect to media driver" << std::endl;
+            std::cerr << "Failed to connect" << std::endl;
             return 1;
         }
 
@@ -194,7 +216,7 @@ int main(int argc, char *argv[])
         for (const std::string &exchange_to_sub : subscribe_to)
         {
             // Resubscribe with proper callbacks
-            g_client->unsubscribeFromExchange(exchange_to_sub); // First unsubscribe the one without callbacks
+            // g_client->unsubscribeFromExchange(exchange_to_sub); // First unregisterSubscriber the one without callbacks
 
             // Subscribe with position update and disconnect callbacks
             auto position_callback = [exchange_to_sub](const PositionUpdate &update)
@@ -209,7 +231,7 @@ int main(int argc, char *argv[])
 
             if (!g_client->subscribeToExchange(exchange_to_sub, position_callback, disconnect_callback))
             {
-                std::cerr << "Failed to subscribe to exchange: " << exchange_to_sub << std::endl;
+                std::cerr << "Failed to registerSubscriber to exchange: " << exchange_to_sub << std::endl;
             }
         }
 
@@ -226,30 +248,19 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (is_publisher_mode)
-        {
-            LOG_INFO("Connected! Publishing random positions every 3 seconds...");
-        }
-        else
-        {
-            LOG_INFO("Connected! Subscriber-only mode - waiting for position updates...");
-        }
-
         // Random number generator for position simulation
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<> position_dist(-1000.0, 1000.0);
         std::uniform_int_distribution<> symbol_count_dist(1, 5);
 
-        std::vector<std::string> symbols = {
-            "BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT",
-            "BNBUSDT", "SOLUSDT", "MATICUSDT", "AVAXUSDT", "UNIUSDT"};
-
         // Main publishing loop
         auto last_publish_time = std::chrono::steady_clock::now();
         auto last_stats_time = std::chrono::steady_clock::now();
+        auto last_print_positions_time = std::chrono::steady_clock::now();
         const auto publish_interval = std::chrono::seconds(3);
         const auto stats_interval = std::chrono::seconds(15);
+        const auto print_positions_interval = std::chrono::seconds(15);
 
         while (g_client->isConnected())
         {
@@ -261,27 +272,34 @@ int main(int argc, char *argv[])
                 // Generate random positions
                 int num_positions = symbol_count_dist(gen);
                 std::vector<SymbolPosition> positions;
+                std::unordered_set<std::string> used_symbols;
 
                 for (int i = 0; i < num_positions; ++i)
                 {
+                    // Here we don't want to publish same symbol twice
                     std::string symbol = symbols[gen() % symbols.size()];
+                    while (used_symbols.find(symbol) != used_symbols.end())
+                    {
+                        symbol = symbols[gen() % symbols.size()];
+                    }
+                    used_symbols.insert(symbol);
                     double position = position_dist(gen);
-                    positions.emplace_back(symbol, position);
+                    positions.emplace_back(symbolWithShortName(symbol, exchange), position);
                 }
-
-                // Print all positions being published
-                std::string strategy_id = exchange + "_STRATEGY_1";
-                std::string positions_log = "PUBLISHING " + std::to_string(positions.size()) + " positions for " + strategy_id + ":";
-                for (const auto &pos : positions)
-                {
-                    positions_log += "\n  -> " + pos.toString();
-                }
-                LOG_INFO(positions_log);
 
                 // Publish positions
+                // get PID
+                std::string pid = std::to_string(getpid());
+                std::string strategy_id = exchange + "_" + pid;
                 if (g_client->publishPositions(strategy_id, positions))
                 {
-                    LOG_INFO("PUBLISHED: " + std::to_string(positions.size()) + " positions for " + strategy_id);
+                    // Print all positions being published
+                    std::string positions_log = "PUBLISHED " + std::to_string(positions.size()) + " positions for " + strategy_id + ":";
+                    for (const auto &pos : positions)
+                    {
+                        positions_log += "\n  -> " + pos.toString();
+                    }
+                    LOG_INFO(positions_log);
                 }
                 else
                 {
@@ -291,15 +309,23 @@ int main(int argc, char *argv[])
                 last_publish_time = now;
             }
 
-            // Print statistics periodically
-            if (now - last_stats_time >= stats_interval)
+            // Throttled printing of all positions in cache
+            if (now - last_print_positions_time >= print_positions_interval)
             {
-                printStatistics(*g_client);
-                last_stats_time = now;
+                for (const std::string &exchange : subscribe_to)
+                {
+                    LOG_INFO("[" + exchange + "] CACHED POSITIONS:");
+                    for (const std::string &symbol : symbols)
+                    {
+                        auto position = g_client->getPosition(exchange, symbolWithShortName(symbol, exchange));
+                        if (position)
+                        {
+                            LOG_INFO("[" + exchange + "] POSITION: " + symbolWithShortName(symbol, exchange) + " = " + std::to_string(*position));
+                        }
+                    }
+                }
+                last_print_positions_time = now;
             }
-
-            // Poll for incoming messages
-            g_client->pollMessages();
 
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
